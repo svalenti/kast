@@ -318,7 +318,7 @@ if __name__ == "__main__":
         _output = re.sub('/','','_'.join(key[:-1]))
         senslist = glob.glob('sens*'+_output+'*fits')
         print(senslist)
-        if len(senslist):
+        if len(senslist): 
             sensfile= senslist[0]
             for img in objectlist['obj'][key]:
                 imgl = os.path.splitext(img)[0] + '_l.fits'
