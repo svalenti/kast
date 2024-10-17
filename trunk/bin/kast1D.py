@@ -277,7 +277,7 @@ if __name__ == "__main__":
                         kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force)
 
 ################################################################################
-    #####   wavelengh calibraton objects
+    #####   wavelengh calibration objects
     for key in objectlist['std'].keys():
                 print(key)
                 _arm = key[0]
