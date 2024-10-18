@@ -37,13 +37,25 @@ if __name__ == "__main__":
     parser.add_option("-i", "--interactive", action="store_true",
                       dest='interactive', default=False, help='Interactive \t\t\ [%default]')
     parser.add_option("-F", "--force", dest="force", action="store_true",default=False)
+    parser.add_option("--redoident", dest="redoident", action="store_true",default=False)
+    parser.add_option("--redoex", dest="redoex", action="store_true",default=False)
+    parser.add_option("--redosens", dest="redosens", action="store_true",default=False)
+
     
     option, args = parser.parse_args()
     _interactive = option.interactive
     _directory = option.directory
     _force = option.force
+    _redoident = option.redoident
+    _redoex = option.redoex
+    _redosens = option.redosens
     stage = option.stage
 
+    if _force:
+        _redoident = True
+        _redoex = True
+        _redosens = True
+        
     if _interactive:
         _verbose= True
         _interiraf= 'yes'
@@ -199,13 +211,13 @@ if __name__ == "__main__":
                     kast.kastutil.extractspectrum(img,imgex,_reference,_trace,
                                                   _fittrac,_find,_recenter,_edit,
                                                   _gain,_rdnoise,dv,_interactive,
-                                                  _review,_type,_mode, _arm, key, _force)
+                                                  _review,_type,_mode, _arm, key, _redoex)
                     
                     if observedarc:
                         # need to find a better way to select the arc (close in JD)
                         arcfile = observedarc[0]
                         print(img,imgex,arcfile,_arm)
-                        arcfileex =  kast.kastutil.arcextraction(arcfile, img, imgex, _arm,dv,True)
+                        arcfileex =  kast.kastutil.arcextraction(arcfile, img, imgex, _arm,dv,_redoex)
                     else:
                         print('no arc with this setup')
                         
@@ -245,13 +257,13 @@ if __name__ == "__main__":
                     kast.kastutil.extractspectrum(img,imgex,_reference,_trace,
                                                   _fittrac,_find,_recenter,_edit,
                                                   _gain,_rdnoise,dv,_interactive,
-                                                  _review,_type,_mode, _arm, key, _force)
+                                                  _review,_type,_mode, _arm, key, _redoex)
 
                     if observedarc:
                         # need to find a better way to select the arc (close in JD)
                         arcfile = observedarc[0]
                         print(img,imgex,arcfile,_arm)
-                        arcfileex =  kast.kastutil.arcextraction(arcfile, img, imgex, _arm,dv,_force)
+                        arcfileex =  kast.kastutil.arcextraction(arcfile, img, imgex, _arm,dv,_redoex)
                     else:
                         print('no arc with this setup')
 ################################################################################
@@ -270,12 +282,20 @@ if __name__ == "__main__":
                     listarc = glob.glob(directory + '/*fits')                    
                     print(listarc)
                     if not listarc:
-                        kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force)
+                        imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_redoident)
                     else:
                         _arcref = listarc[0]
                         print('#######',_arcref)
-                        kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force)
+                        imgl= kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_redoident)
+                    
 
+                    if _arm == 'kastr':
+                        _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
+                    else:
+                        _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
+
+                    kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = _arm)
+                        
 ################################################################################
     #####   wavelengh calibration objects
     for key in objectlist['std'].keys():
@@ -292,11 +312,15 @@ if __name__ == "__main__":
                     listarc = glob.glob(directory + '/*fits')                    
                     print(listarc)
                     if not listarc:
-                        kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force)
+                        imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_redoident)
                     else:
                         _arcref = listarc[0]
                         print('#######',_arcref)
-                        kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force)
+                        imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_redoident)
+
+                    _skyfile = kast.__path__[0] + '/standard/ident/sky_new_0.fits'
+                    #hdu=fits.open(imgl)
+                    kast.kastutil.checkwavestd(imgl, _skyfile, 'yes',True, arm = _arm)
                         
 #######################################################################################################
      #########   sens function
@@ -307,12 +331,11 @@ if __name__ == "__main__":
         for img in objectlist['std'][key]:
             imgl = os.path.splitext(img)[0] + '_l.fits'
             if os.path.isfile(imgl):
-                
                 imgclean,atmofile = kast.kastutil.make_atmo(imgl)
-                kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= True,  _function='spline3', _order=8, interactive='yes')
+                kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= True,  _function='spline3', _order=8, interactive='yes',force=_redosens)
                 
 #######################################################################################################
-
+    ######## calib spectra
     for key in objectlist['obj'].keys():
         print(key)
         _output = re.sub('/','','_'.join(key[:-1]))

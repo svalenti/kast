@@ -310,7 +310,7 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
         print(dv['dispaxis'][arm],arm)
         if arcref is False:
             identific = iraf.specred.identify(images=arcfilex, section='middle line',
-                                              coordli='direc$standard/licklinelist.dat',
+                                              coordli='direc$standard/ident/licklinelist.dat',
                                               nsum=10, fwidth=dv['ident']['fwhm'],
                                               cradius=dv['ident']['cradius'],
                                               function=dv['ident']['function'], order=dv['ident']['order'],
@@ -326,7 +326,7 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
             arcref0 = os.path.basename(arcref)            
             identific = iraf.specred.reidentify(referenc=arcref0, images=arcfilex,
                                                 interac=_interactive, section='middle line',
-                                                shift=_shift, coordli='direc$standard/licklinelist.dat',
+                                                shift=_shift, coordli='direc$standard/ident/licklinelist.dat',
                                                 overrid='yes', cradius=dv['ident']['cradius'],
                                                 step=0,
                                                 newaps='no', nsum=5, nlost=2, mode='h',
@@ -354,10 +354,11 @@ def updateheader(filename, dimension, headerdict):
         header.update(tupledict)
         hdulist.close()
     except Exception as e:
-        print 'header of', image, 'not updated:'
+        print 'header of', filename, 'not updated:'
         print e
 
-
+#################################################################
+        
 def readspectrum(img):
     from numpy import array
     from astropy.io import fits
@@ -405,6 +406,8 @@ def readspectrum(img):
             graf = 0
     return lam, fl
 
+##############################################################
+
 def make_atmo(stdfile):
    xx,yy = kast.kastutil.readspectrum(stdfile)
    zz = (( 6820 > xx ) | ( xx> 7090)) &\
@@ -425,15 +428,16 @@ def make_atmo(stdfile):
    hdu.writeto(stdclean,overwrite=True)
    return stdclean,atmofile
 
+#######################################################################
 
-def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _function= 'spline3', _order = 8, interactive = 'yes'):
+
+def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _function= 'spline3',
+             _order = 8, interactive = 'yes', force= True):
         from pyraf import iraf
         iraf.noao(_doprint=0, Stdout=0)
         iraf.imred(_doprint=0, Stdout=0)
         iraf.ccdred(_doprint=0, Stdout=0)
-        iraf.specred(_doprint=0, Stdout=0)
-
-        
+        iraf.specred(_doprint=0, Stdout=0)        
         iraf.set(direc=kast.__path__[0] + '/')
         _caldir = 'direc$standard/MAB/'
         _extinctdir = 'direc$standard/extinction/'
@@ -451,94 +455,96 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
             print(_output)
             _outputstd= 'std_'+ str(_date) + '_'+ _output
             _outputsens= 'sens_'+ str(_date) + '_'+ _output + '.fits'
-            
-        rastd, decstd, namestd = readstandard()
-        
-        _ra = hdu[0].header['RA']
-        _dec = hdu[0].header['DEC']
-        c = SkyCoord(_ra,_dec,frame='fk5',unit=(u.hourangle,u.deg))
-        _ra = c.ra.value
-        _dec = c.dec.value
-        distance = 3600 * ((rastd - _ra)**2 + (decstd - _dec)**2)**.5
-        if np.min(distance)> 10:
-            print('object not found in the list')
-            refstar = 'INDEF'
-        else:
-            refstar = 'm'+namestd[np.argmin(distance)]
 
-        force =True
-        if os.path.isfile(_outputstd):
+
+        _run = True
+        if os.path.isfile(_outputsens):
             if force:
-                os.remove(_outputstd)
-        if _split:
-            if _key[0]=='kastb':
-                _w01 = 3000
-                _w02 = 5300
-                _w11 = 5150
-                _w12 = 6000
-                sens0 = '_sensb0.fits'
-                sens1 = '_sensb1.fits'
+                os.remove(_outputsens)
             else:
-                _w01 = 5200
-                _w02 = 6000 
-                _w11 = 5850
-                _w12 = 12000
-                sens0 = '_sensr0.fits'
-                sens1 = '_sensr1.fits'
+                _run = False
+                print('sensitivity function already done')
+
+        if _run:
+            rastd, decstd, namestd = readstandard()        
+            _ra = hdu[0].header['RA']
+            _dec = hdu[0].header['DEC']
+            c = SkyCoord(_ra,_dec,frame='fk5',unit=(u.hourangle,u.deg))
+            _ra = c.ra.value
+            _dec = c.dec.value
+            distance = 3600 * ((rastd - _ra)**2 + (decstd - _dec)**2)**.5
+            if np.min(distance)> 10:
+                print('object not found in the list')
+                refstar = 'INDEF'
+            else:
+                refstar = 'm'+namestd[np.argmin(distance)]
                 
-            obj0 = '_obj0.fits'
-            obj1 = '_obj1.fits'
-            std1 = '_std1'
-            std0 = '_std0'
-            std1 = '_std1.fits'
-
-            for _file in [obj0, obj1, std0, std1, sens0, sens1]:
-                if os.path.isfile(_file):
-                    os.remove(_file)
-
-                
-            iraf.scopy(standardfile, obj0, w1=_w01, w2=_w02)
-            iraf.scopy(standardfile, obj1, w1=_w11, w2=_w12)
-
-            ######
-            iraf.specred.standard(input=obj0, output=std0, extinct=_extinctdir + _extinction,
-                                  caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
-                                  exptime=_exptime, interac=interactive)
+            if os.path.isfile(_outputstd):
+                    os.remove(_outputstd)
+                    
+            if _split:
+                if _key[0]=='kastb':
+                    _w01 = 3000
+                    _w02 = 5300
+                    _w11 = 5150
+                    _w12 = 6000
+                    sens0 = '_sensb0.fits'
+                    sens1 = '_sensb1.fits'
+                else:
+                    _w01 = 5200
+                    _w02 = 6000 
+                    _w11 = 5850
+                    _w12 = 12000
+                    sens0 = '_sensr0.fits'
+                    sens1 = '_sensr1.fits'
+                    
+                obj0 = '_obj0.fits'
+                obj1 = '_obj1.fits'
+                std1 = '_std1'
+                std0 = '_std0'
+                std1 = '_std1.fits'
         
-            iraf.specred.sensfunc(standard=std0, sensitiv=sens0, extinct=_extinctdir + _extinction,
-                                  ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
-                                  interac=interactive)
-            ######
-            iraf.specred.standard(input=obj1, output=std1, extinct=_extinctdir + _extinction,
-                                  caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
-                                  exptime=_exptime, interac=interactive)
+                for _file in [obj0, obj1, std0, std1, sens0, sens1]:
+                    if os.path.isfile(_file):
+                        os.remove(_file)
         
-            iraf.specred.sensfunc(standard=std1, sensitiv=sens1, extinct=_extinctdir + _extinction,
-                                  ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
-                                  interac=interactive)
-
-            if os.path.isfile(_outputsens):
-                if force:
-                    os.remove(_outputsens)
-            combstring = sens0+','+sens1
-            sss = iraf.specred.scombine(combstring, output=_outputsens, combine='average', reject='none',
-                                scale='none', weight='none', Stdout=1)
-
+                    
+                iraf.scopy(standardfile, obj0, w1=_w01, w2=_w02)
+                iraf.scopy(standardfile, obj1, w1=_w11, w2=_w12)
+        
+                ######
+                iraf.specred.standard(input=obj0, output=std0, extinct=_extinctdir + _extinction,
+                                      caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
+                                      exptime=_exptime, interac=interactive)
             
-            print('split')
-        else:
-            iraf.specred.standard(input=standardfile, output=_outputstd, extinct=_extinctdir + _extinction,
-                                  caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
-                                  exptime=_exptime, interac=interactive)
- 
-            if os.path.isfile(_outputsens):
-                if force:
-                    os.remove(_outputsens)
-       
-            iraf.specred.sensfunc(standard=_outputstd, sensitiv=_outputsens, extinct=_extinctdir + _extinction,
-                                  ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
-                                  interac=interactive)
+                iraf.specred.sensfunc(standard=std0, sensitiv=sens0, extinct=_extinctdir + _extinction,
+                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
+                                      interac=interactive)
+                ######
+                iraf.specred.standard(input=obj1, output=std1, extinct=_extinctdir + _extinction,
+                                      caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
+                                      exptime=_exptime, interac=interactive)
+            
+                iraf.specred.sensfunc(standard=std1, sensitiv=sens1, extinct=_extinctdir + _extinction,
+                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
+                                      interac=interactive)
+        
+                combstring = sens0+','+sens1
+                sss = iraf.specred.scombine(combstring, output=_outputsens, combine='average', reject='none',
+                                    scale='none', weight='none', Stdout=1)
+        
+                
+                print('split')
+            else:
+                iraf.specred.standard(input=standardfile, output=_outputstd, extinct=_extinctdir + _extinction,
+                                      caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
+                                      exptime=_exptime, interac=interactive)
+                   
+                iraf.specred.sensfunc(standard=_outputstd, sensitiv=_outputsens, extinct=_extinctdir + _extinction,
+                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
+                                      interac=interactive)
 
+##############################################################            
 
 def calibrate(imgl, imgf, sensfile, force = True, interactive = 'yes'):
     from pyraf import iraf
@@ -570,3 +576,161 @@ def calibrate(imgl, imgf, sensfile, force = True, interactive = 'yes'):
                                      airmass=_airmass, ignorea='yes', exptime=_exptime, fnu='no')
     
                               
+######################################################################################
+
+def checkwavelength_arc(xx1, yy1, xx2, yy2, xmin, xmax, _interactive='yes'):
+    from numpy import array, trapz, compress
+    from numpy import interp as ninterp
+
+    minimo = max(min(xx1), min(xx2)) + 60
+    massimo = min(max(xx1), max(xx2)) - 60
+    yy1 = [0 if e < 0 else e for e in array(yy1)]
+    yy2 = [0 if e < 0 else e for e in array(yy2)]
+    _shift, integral = [], []
+    for shift in range(-600, 600, 1):
+        xxnew = xx1 + shift / 10.
+        yy2interp = ninterp(xxnew, xx2, yy2)
+        yy2timesyy = yy2interp * yy1
+        xxcut = compress((array(xxnew) >= minimo) & (array(xxnew) <= massimo), array(xxnew))
+        yycut = compress((array(xxnew) >= minimo) & (array(xxnew) <= massimo), array(yy2timesyy))
+        integrale = trapz(yycut, xxcut)
+        integral.append(integrale)
+        _shift.append(shift / 10.)
+    result = _shift[integral.index(max(integral))]
+    if _interactive in ['YES', 'y', 'Y', 'yes', 'Yes', True]:
+        #   import matplotlib as mpl  
+        #   mpl.use("TKAgg")  
+        from pylab import plot, show, ion, clf, legend, xlim, ylim
+
+        ion()
+        clf()
+        ratio = trapz(yy1, xx1) / trapz(yy2, xx2)
+        yy3 = array(yy2) * float(ratio)
+        xx4 = xx1 + result
+        plot(xx1, yy1, label='spectrum')
+        plot(xx2, yy3, label='reference sky')
+        plot(xx4, yy1, label='shifted spectrum')
+        legend(numpoints=1, markerscale=1.5)
+        if xmin != '' and xmax != '':
+            xlim(xmin, xmax)
+    return result
+
+###################################################################
+
+def continumsub(imagefile, _order1, _order2):
+    from pyraf import iraf
+    iraf.noao(_doprint=0)
+    iraf.imred(_doprint=0)
+    iraf.specred(_doprint=0)
+    if os.path.isfile('tsky.fits'):
+        os.remove('tsky.fits')
+    #toforget = ['specred.continuum']
+    #for t in toforget: iraf.unlearn(t)
+
+    output = 'subtracted.fits'
+    iraf.specred.continuum(imagefile, output='tsky.fits', type='difference', interact='no', function='legendre',
+                           niterat=300, low_rej=3, high_re=2, sample='*', order=_order1, ask='YES')
+    iraf.specred.continuum('tsky.fits', output=output, type='difference', interact='no', function='spline1',
+                   overrid='yes', niterat=10, low_rej=3, high_re=1, sample='*', order=_order2, ask='YES')
+
+    if os.path.isfile('tsky.fits'):
+        os.remove('tsky.fits')
+    return output
+
+#######################################################
+
+def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=True, arm = 'kastr'):
+    from astropy.io import fits
+    import numpy as np
+    from pyraf import iraf
+
+    if arm=='kastr':
+        minw = 5500
+        maxw = 8000
+    else:
+        minw = 4000
+        maxw = 6000
+    
+    if _interactive.lower() in ['yes', 'y']:
+        do_shift = raw_input('### Do you want to check the wavelength calibration with telluric lines? [[y]/n] ')
+    else:
+        print '### Checking wavelength calibration with telluric lines'
+        do_shift = ''
+    if do_shift != 'n':
+        if usethirdlayer:
+            iraf.scopy(fitsfile + '[*,1,3]', 'skylayer.fits') # iraf.continuum doesn't allow slices
+            subtracted = continumsub('skylayer.fits', 6, 1)
+            os.remove('skylayer.fits')
+        else:
+            subtracted = continumsub(fitsfile, 6, 1)
+        sky_spec = fits.open(subtracted)[0]
+        y1 = sky_spec.data
+        crval1 = sky_spec.header['CRVAL1']
+        x1 = crval1 + np.arange(len(y1)) * sky_spec.header['CD1_1']
+        sky_arch = fits.open(skyfile)[0]
+        y2 = sky_arch.data
+        x2 = sky_arch.header['CRVAL1'] + np.arange(len(y2)) * sky_arch.header['CD1_1']
+        shift = checkwavelength_arc(x1, y1, x2, y2, minw, maxw, _interactive)
+        if _interactive.lower() in ['yes', 'y']:
+            answ = raw_input('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
+            if answ:
+                shift = float(answ)
+                
+        updateheader(fitsfile, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT'+arm: (shift, '')})
+        if os.path.isfile(subtracted):
+            os.remove(subtracted)
+    else:
+        shift = 0
+    return shift
+
+######################################################33
+def checkwavestd(imgl, skyfile, _interactive='yes', _type=1, arm = 'kastr'):
+    from astropy.io import fits
+    from numpy import arange, array
+
+    if arm=='kastr':
+        minw = 5500
+        maxw = 8000
+    else:
+        minw = 4000
+        maxw = 6000
+        
+    print '\n### Warning: check in wavelength with sky lines not performed\n'
+    if _interactive.upper() in ['YES', 'Y']:
+        answ = raw_input('\n### Do you want to check the wavelength calibration with telluric lines [[y]/n]? ')
+        if not answ: answ = 'y'
+    else:
+        answ = 'y'
+    if answ in ['y', 'yes']:
+        print('\n### check wavelength calibration with telluric lines \n')
+        skydata, skyhdr = fits.getdata(skyfile, header=True)
+        skyff = 1 - skydata
+        crval1 = skyhdr['CRVAL1']
+        cd1 = skyhdr['CD1_1']
+        skyxx = np.arange(len(skyff))
+        skyaa = crval1 + skyxx * cd1
+        stdclean, atmofile = make_atmo(imgl)
+        atmodata, atmohdr = fits.getdata(atmofile, header=True)
+        if _type == 1:
+            atmoff = 1 - atmodata[0][0]
+        else:
+            atmoff = 1 - atmodata
+        crval1 = atmohdr['CRVAL1']
+        cd1 = atmohdr['CD1_1']
+        atmoxx = np.arange(len(atmoff))
+        atmoaa = crval1 + atmoxx * cd1
+        shift = checkwavelength_arc(atmoaa, atmoff, skyaa, skyff, minw, maxw,  _interactive)
+        if _interactive.lower() in ['yes', 'y']:
+            answ = raw_input('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
+            if answ:
+                shift = float(answ)
+        if shift!=0:
+            updateheader(imgl, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT'+arm: (shift, '')})
+#        if os.path.isfile(subtracted):
+#            os.remove(subtracted)
+#        floyds.util.delete('atmo2_' + _tel + '_' + imgex)
+    else:
+        shift = 0
+    return shift
+
+##############################################################
