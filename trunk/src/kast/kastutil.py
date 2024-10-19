@@ -66,6 +66,7 @@ def checkalldata(directory=False,verbose=False, all=False):
         imglist = [i for i in imglist if '_std' not in i]
         imglist = [i for i in imglist if '_sens' not in i]
         imglist = [i for i in imglist if '_obj' not in i]
+        imglist = [i for i in imglist if '_sub' not in i]
         
     else:
         if directory:
@@ -194,17 +195,17 @@ def responseflat(_calibration , _normalization, _output, _order= 80, function= '
     iraf.specred.response(calibration=_calibration , normalization = _normalization,  response=_output,
                           order= _order, function= 'spline3', interactive= _interactive)
     if _arm == 'kastb':
-        iraf.imreplace(_output+'[1750:2048,*]',value =1, lower= 0.99, upper= 'INDEF')
-        iraf.imreplace(_output+'[1750:2048,*]',value =1, lower= 'INDEF', upper= 1.01)
+        iraf.imreplace(_output+'[1750:1900,*]',value =1, lower= 0.99, upper= 'INDEF')
+        iraf.imreplace(_output+'[1750:1900,*]',value =1, lower= 'INDEF', upper= 1.01)
         iraf.imreplace(_output+'[1:250,*]',value =1, lower= 0.99, upper= 'INDEF')
         iraf.imreplace(_output+'[1:250,*]',value =1, lower= 'INDEF', upper= 1.01)
     elif _arm == 'kastr':
-        iraf.imreplace(_output+'[*,2020:2200]',value =1, lower= 0.99, upper= 'INDEF')
-        iraf.imreplace(_output+'[*,2020:2200]',value =1, lower= 'INDEF', upper= 1.01)
-        iraf.imreplace(_output+'[*,1:230]',value =1, lower= 0.99, upper= 'INDEF')
-        iraf.imreplace(_output+'[*,1:230]',value =1, lower= 'INDEF', upper= 1.01)
-        iraf.imreplace(_output+'[*,1630:1730]',value =1, lower= 0.99, upper= 'INDEF')
-        iraf.imreplace(_output+'[*,1630:1730]',value =1, lower= 'INDEF', upper= 1.01)
+        iraf.imreplace(_output+'[*,1960:2140]',value =1, lower= 0.99, upper= 'INDEF')
+        iraf.imreplace(_output+'[*,1960:2140]',value =1, lower= 'INDEF', upper= 1.01)
+        iraf.imreplace(_output+'[*,1:170]',value =1, lower= 0.99, upper= 'INDEF')
+        iraf.imreplace(_output+'[*,1:170]',value =1, lower= 'INDEF', upper= 1.01)
+        iraf.imreplace(_output+'[*,1570:1670]',value =1, lower= 0.99, upper= 'INDEF')
+        iraf.imreplace(_output+'[*,1570:1670]',value =1, lower= 'INDEF', upper= 1.01)
     else:
         print('arm not defined')
         
@@ -289,14 +290,13 @@ def arcextraction(arcfile, img, imgex, arm,dv,_force =False):
 def identify(arcfilex, img, arm, dv, arcref=False, force =False):
     imgl = os.path.splitext(img)[0] + '_l.fits'
     imgex = os.path.splitext(img)[0] + '_ex.fits'
-
     run = True
-    if os.path.isfile(imgl):
-        if force:
-            os.remove(imgl)
-        else:
-            print('already wavelength calibrated')
-            run = False
+#    if os.path.isfile(imgl):
+#        if force:
+#            os.remove(imgl)
+#        else:
+#            print('already wavelength calibrated')
+#            run = False
 
     if run is True:
         from pyraf import iraf
@@ -335,6 +335,13 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
         hedvec = {'REFSPEC1': [re.sub('.fits', '', arcfilex), ' reference arc']}
         updateheader(imgex, 0, hedvec)
         iraf.specred.dispcor(imgex, output=imgl, flux='yes')
+
+#        if arm == 'kastr':
+#            _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
+#        else:
+#            _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'           
+#        kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = arm)
+        
     return imgl
     
 #def searcharc(img, listarc):
@@ -490,6 +497,8 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                     _w12 = 6000
                     sens0 = '_sensb0.fits'
                     sens1 = '_sensb1.fits'
+                    _order0 = 10
+                    _order1 = 25
                 else:
                     _w01 = 5200
                     _w02 = 6000 
@@ -497,6 +506,8 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                     _w12 = 12000
                     sens0 = '_sensr0.fits'
                     sens1 = '_sensr1.fits'
+                    _order0 = 25
+                    _order1 = 10
                     
                 obj0 = '_obj0.fits'
                 obj1 = '_obj1.fits'
@@ -518,7 +529,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                                       exptime=_exptime, interac=interactive)
             
                 iraf.specred.sensfunc(standard=std0, sensitiv=sens0, extinct=_extinctdir + _extinction,
-                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
+                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order0,
                                       interac=interactive)
                 ######
                 iraf.specred.standard(input=obj1, output=std1, extinct=_extinctdir + _extinction,
@@ -526,7 +537,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                                       exptime=_exptime, interac=interactive)
             
                 iraf.specred.sensfunc(standard=std1, sensitiv=sens1, extinct=_extinctdir + _extinction,
-                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
+                                      ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order1 ,
                                       interac=interactive)
         
                 combstring = sens0+','+sens1
@@ -617,21 +628,21 @@ def checkwavelength_arc(xx1, yy1, xx2, yy2, xmin, xmax, _interactive='yes'):
 
 ###################################################################
 
-def continumsub(imagefile, _order1, _order2):
+def continumsub(imagefile, _order1=6, _order2=1,_low = 4, _high=3, _interactive = 'no' ):
     from pyraf import iraf
     iraf.noao(_doprint=0)
     iraf.imred(_doprint=0)
     iraf.specred(_doprint=0)
     if os.path.isfile('tsky.fits'):
         os.remove('tsky.fits')
-    #toforget = ['specred.continuum']
-    #for t in toforget: iraf.unlearn(t)
+    toforget = ['specred.continuum']
+    for t in toforget: iraf.unlearn(t)
 
-    output = 'subtracted.fits'
-    iraf.specred.continuum(imagefile, output='tsky.fits', type='difference', interact='no', function='legendre',
-                           niterat=300, low_rej=3, high_re=2, sample='*', order=_order1, ask='YES')
-    iraf.specred.continuum('tsky.fits', output=output, type='difference', interact='no', function='spline1',
-                   overrid='yes', niterat=10, low_rej=3, high_re=1, sample='*', order=_order2, ask='YES')
+    output = '_subtracted.fits'
+    iraf.specred.continuum(imagefile, output='tsky.fits', type='difference', interact= _interactive, function='legendre',
+                           niterat=300, low_rej=_low, high_re=_high, sample='*', order=_order1, ask='YES')
+    iraf.specred.continuum('tsky.fits', output=output, type='difference', interact=_interactive, function='spline1',
+                   overrid='yes', niterat=10, low_rej=4, high_re=2, sample='*', order=_order2, ask='YES')
 
     if os.path.isfile('tsky.fits'):
         os.remove('tsky.fits')
@@ -657,12 +668,22 @@ def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=Tru
         print '### Checking wavelength calibration with telluric lines'
         do_shift = ''
     if do_shift != 'n':
+        if arm=='kastr':
+            order1 = 8
+            order2 = 1
+            low = 4
+            high = 3
+        else:
+            order1 = 30
+            order2 = 1
+            low = 5
+            high = 3
         if usethirdlayer:
-            iraf.scopy(fitsfile + '[*,1,3]', 'skylayer.fits') # iraf.continuum doesn't allow slices
-            subtracted = continumsub('skylayer.fits', 6, 1)
+            iraf.scopy(fitsfile + '[*,1,3]', 'skylayer.fits',w1='INDEF',w2='INDEF') # iraf.continuum doesn't allow slices
+            subtracted = continumsub('skylayer.fits', _order1=order1, _order2=order2, _low=low,_high=high, _interactive = 'yes')
             os.remove('skylayer.fits')
         else:
-            subtracted = continumsub(fitsfile, 6, 1)
+            subtracted = continumsub(fitsfile, _order1=order1, _order2=order2, _low=low,_high=high, _interactive='yes')
         sky_spec = fits.open(subtracted)[0]
         y1 = sky_spec.data
         crval1 = sky_spec.header['CRVAL1']
@@ -676,7 +697,7 @@ def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=Tru
             if answ:
                 shift = float(answ)
                 
-        updateheader(fitsfile, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT'+arm: (shift, '')})
+        updateheader(fitsfile, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT': (shift, '')})
         if os.path.isfile(subtracted):
             os.remove(subtracted)
     else:
@@ -725,7 +746,7 @@ def checkwavestd(imgl, skyfile, _interactive='yes', _type=1, arm = 'kastr'):
             if answ:
                 shift = float(answ)
         if shift!=0:
-            updateheader(imgl, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT'+arm: (shift, '')})
+            updateheader(imgl, 0, {'CRVAL1': (crval1 + shift, ''), 'SHIFT': (shift, '')})
 #        if os.path.isfile(subtracted):
 #            os.remove(subtracted)
 #        floyds.util.delete('atmo2_' + _tel + '_' + imgex)

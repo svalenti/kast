@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
 
     readaxi = {'kastr':'column', 'kastb': 'line'}
-    trimsec = {'kastb':'[1:2048,20:320]', 'kastr': '[150:420,1:2200]'}
+    trimsec = {'kastb':'[1:1900,20:320]', 'kastr': '[150:420,60:2200]'}
     specredaxis = {'kastb': 1, 'kastr': 2}
     
     ############################

@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
 
     readaxi = {'kastr':'column', 'kastb': 'line'}
-    trimsec = {'kastb':'[1:2048,20:320]', 'kastr': '[135:435,1:2700]'}
+    trimsec = {'kastb':'[1:1900,20:320]', 'kastr': '[135:435,60:2200]'}
     specredaxis = {'kastb': 1, 'kastr': 2}
     
 
@@ -276,36 +276,54 @@ if __name__ == "__main__":
                 _slit = key[3]
                 for img in objectlist['obj'][key]:
                     imgex = os.path.splitext(img)[0] + '_ex.fits'
-                    arcfilex = 'arc_' + imgex
-                    directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
-                    print(directory)
-                    listarc = glob.glob(directory + '/*fits')                    
-                    print(listarc)
-                    if not listarc:
-                        imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_redoident)
-                    else:
-                        _arcref = listarc[0]
-                        print('#######',_arcref)
-                        imgl= kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_redoident)
-                    
+                    imgl = os.path.splitext(img)[0] + '_l.fits'
+                    run = True
+                    if os.path.isfile(imgl):
+                        if _redoident:
+                            os.remove(imgl)
+                        else:
+                            print('already wavelength calibrated')
+                            run = False
 
-                    if _arm == 'kastr':
-                        _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
-                    else:
-                        _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
-
-                    kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = _arm)
+                    if run is True:
+                        arcfilex = 'arc_' + imgex
+                        directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
+                        print(directory)
+                        listarc = glob.glob(directory + '/*fits')                    
+                        print(listarc)
+                        if not listarc:
+                            imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_redoident)
+                        else:
+                            _arcref = listarc[0]
+                            print('#######',_arcref)
+                            imgl= kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_redoident)
+                        
+                        if _arm == 'kastr':
+                            _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
+                        else:
+                            _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
+                        kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = _arm)
                         
 ################################################################################
     #####   wavelengh calibration objects
     for key in objectlist['std'].keys():
-                print(key)
-                _arm = key[0]
-                _disp = key[1]
-                _dicroic = key[2]
-                _slit = key[3]
-                for img in objectlist['std'][key]:
-                    imgex = os.path.splitext(img)[0] + '_ex.fits'
+        print(key)
+        _arm = key[0]
+        _disp = key[1]
+        _dicroic = key[2]
+        _slit = key[3]
+        for img in objectlist['std'][key]:
+            imgex = os.path.splitext(img)[0] + '_ex.fits'
+            imgl = os.path.splitext(img)[0] + '_l.fits'
+            run = True
+            if os.path.isfile(imgl):
+                if _redoident:
+                    os.remove(imgl)
+                else:
+                    print('already wavelength calibrated')
+                    run = False
+                    
+            if run is True:            
                     arcfilex = 'arc_' + imgex
                     directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
                     print(directory)
@@ -318,10 +336,12 @@ if __name__ == "__main__":
                         print('#######',_arcref)
                         imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_redoident)
 
-                    _skyfile = kast.__path__[0] + '/standard/ident/sky_new_0.fits'
-                    #hdu=fits.open(imgl)
-                    kast.kastutil.checkwavestd(imgl, _skyfile, 'yes',True, arm = _arm)
-                        
+                    if _arm == 'kastr':
+                        _skyfile = kast.__path__[0] + '/standard/ident/sky_new_0.fits'
+                        kast.kastutil.checkwavestd(imgl, _skyfile, 'yes',True, arm = _arm)
+                    else:
+                        _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
+                        kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = _arm)
 #######################################################################################################
      #########   sens function
     for key in objectlist['std'].keys():
