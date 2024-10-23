@@ -67,6 +67,7 @@ def checkalldata(directory=False,verbose=False, all=False):
         imglist = [i for i in imglist if '_sens' not in i]
         imglist = [i for i in imglist if '_obj' not in i]
         imglist = [i for i in imglist if '_sub' not in i]
+        imglist = [i for i in imglist if 'kast_' not in i]
         
     else:
         if directory:
@@ -220,9 +221,9 @@ def dvex():
                  '_weights': 'variance',
                  '_nsum': 30, '_t_step': 10, '_t_nsum': 10, '_lower': -10, '_upper': 10, '_b_sample': '-40:-20,20:40',
                  '_resize': 'no'}
-    dv['obj'] = {'_t_order': 4, '_t_niter': 50, '_t_sample': '*', '_t_nlost': 20, '_width': 10, '_radius': 10,
+    dv['obj'] = {'_t_order': 3, '_t_niter': 50, '_t_sample': '*', '_t_nlost': 20, '_width': 10, '_radius': 10,
                  '_weights': 'variance',
-                 '_nsum': 40, '_t_step': 10, '_t_nsum': 10, '_lower': -5, '_upper': 5, '_b_sample': '-25:-15,15:25',
+                 '_nsum': -400, '_t_step': 10, '_t_nsum': 10, '_lower': -5, '_upper': 5, '_b_sample': '-25:-15,15:25',
                  '_resize': 'yes'}
     dv['dispaxis'] = {'kastb':1,'kastr':2}
     dv['ident']= {'cradius':10, 'fwhm':7, 'function':'legendre','order':5}
@@ -235,6 +236,13 @@ def extractspectrum(img,imgex,_reference,_trace,_fittrac,_find,_recenter,_edit,
     if os.path.isfile(imgex):
         if _force:
             os.remove(imgex)
+        elif _interactive=='yes':
+            hdr0 = fits.getheader(imgex)
+            _ob = hdr0.get('OBJECT')
+            print(_ob)
+            answ = kast.kastutil.ask('Already extracted. do you want to extract again? [Y/[N]] ')
+            if answ.lower() in ['no','n','']:
+                run = False
         else:
             print('already extracted')
             run = False
@@ -287,16 +295,10 @@ def arcextraction(arcfile, img, imgex, arm,dv,_force =False):
 
 
 
-def identify(arcfilex, img, arm, dv, arcref=False, force =False):
+def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = 'no'):
     imgl = os.path.splitext(img)[0] + '_l.fits'
     imgex = os.path.splitext(img)[0] + '_ex.fits'
     run = True
-#    if os.path.isfile(imgl):
-#        if force:
-#            os.remove(imgl)
-#        else:
-#            print('already wavelength calibrated')
-#            run = False
 
     if run is True:
         from pyraf import iraf
@@ -317,7 +319,6 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
                                               mode='h', Stdout=1)
         else:
             _shift = 0
-            _interactive = 'yes'
             os.system('cp '+ arcref + ' ./')
             databasename = os.path.dirname(arcref) +'/database/id' +re.sub('.fits','',os.path.basename(arcref))
             if not os.path.exists('database'):  os.makedirs('database/')
@@ -325,7 +326,7 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
             os.system('cp '+ databasename + ' database/' )
             arcref0 = os.path.basename(arcref)            
             identific = iraf.specred.reidentify(referenc=arcref0, images=arcfilex,
-                                                interac=_interactive, section='middle line',
+                                                interac= interactive, section='middle line',
                                                 shift=_shift, coordli='direc$standard/ident/licklinelist.dat',
                                                 overrid='yes', cradius=dv['ident']['cradius'],
                                                 step=0,
@@ -334,14 +335,7 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False):
 
         hedvec = {'REFSPEC1': [re.sub('.fits', '', arcfilex), ' reference arc']}
         updateheader(imgex, 0, hedvec)
-        iraf.specred.dispcor(imgex, output=imgl, flux='yes')
-
-#        if arm == 'kastr':
-#            _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
-#        else:
-#            _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'           
-#        kast.kastutil.checkwavelength_obj(imgl, _skyfile, 'yes',True, arm = arm)
-        
+        iraf.specred.dispcor(imgex, output=imgl, flux='yes')        
     return imgl
     
 #def searcharc(img, listarc):
@@ -472,20 +466,26 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                 _run = False
                 print('sensitivity function already done')
 
-        if _run:
-            rastd, decstd, namestd = readstandard()        
-            _ra = hdu[0].header['RA']
-            _dec = hdu[0].header['DEC']
-            c = SkyCoord(_ra,_dec,frame='fk5',unit=(u.hourangle,u.deg))
-            _ra = c.ra.value
-            _dec = c.dec.value
-            distance = 3600 * ((rastd - _ra)**2 + (decstd - _dec)**2)**.5
-            if np.min(distance)> 10:
-                print('object not found in the list')
-                refstar = 'INDEF'
-            else:
-                refstar = 'm'+namestd[np.argmin(distance)]
-                
+        rastd, decstd, namestd = readstandard()        
+        _ra = hdu[0].header['RA']
+        _dec = hdu[0].header['DEC']
+        c = SkyCoord(_ra,_dec,frame='fk5',unit=(u.hourangle,u.deg))
+        _ra = c.ra.value
+        _dec = c.dec.value
+        distance = 3600 * ((rastd - _ra)**2 + (decstd - _dec)**2)**.5
+        if np.min(distance)> 10:
+            print('object not found in the list standard_kast.txt')
+            refstar = 'INDEF'
+            _run = False
+        else:
+            refstar = 'm'+namestd[np.argmin(distance)]
+            dire = kast.__path__[0] + '/standard/MAB/'+ refstar + '.dat'
+            print(dire)
+            if not os.path.isfile(dire):
+                print('standard table not found in the standard/MAB directory')
+                _run = False
+            
+        if _run:                
             if os.path.isfile(_outputstd):
                     os.remove(_outputstd)
                     
@@ -544,6 +544,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                 sss = iraf.specred.scombine(combstring, output=_outputsens, combine='average', reject='none',
                                     scale='none', weight='none', Stdout=1)
         
+                updateheader(_outputsens, 0, {'standard': (refstar, '')})
                 
                 print('split')
             else:
@@ -554,6 +555,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                 iraf.specred.sensfunc(standard=_outputstd, sensitiv=_outputsens, extinct=_extinctdir + _extinction,
                                       ignorea='yes', observa=_observatory, graphs='sri', functio=_function, order=_order,
                                       interac=interactive)
+                updateheader(_outputsens, 0, {'standard': (refstar, '')})
 
 ##############################################################            
 
@@ -569,7 +571,7 @@ def calibrate(imgl, imgf, sensfile, force = True, interactive = 'yes'):
         if force:
             os.remove(imgf)
         else:
-            print('already wavelength calibrated')
+            print('already flux calibrated')
             run = False
             
     if run:   
@@ -585,7 +587,7 @@ def calibrate(imgl, imgf, sensfile, force = True, interactive = 'yes'):
         qqq = iraf.specred.calibrate(input=imgl, output=imgf, sensiti=sensfile, extinct='yes', flux='yes',
                                      extinction=_extinctdir + _extinction, observatory=_observatory,
                                      airmass=_airmass, ignorea='yes', exptime=_exptime, fnu='no')
-    
+        updateheader(imgf, 0, {'sensfun': (sensfile, '')})
                               
 ######################################################################################
 
@@ -680,10 +682,10 @@ def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=Tru
             high = 3
         if usethirdlayer:
             iraf.scopy(fitsfile + '[*,1,3]', 'skylayer.fits',w1='INDEF',w2='INDEF') # iraf.continuum doesn't allow slices
-            subtracted = continumsub('skylayer.fits', _order1=order1, _order2=order2, _low=low,_high=high, _interactive = 'yes')
+            subtracted = continumsub('skylayer.fits', _order1=order1, _order2=order2, _low=low,_high=high, _interactive = 'no')
             os.remove('skylayer.fits')
         else:
-            subtracted = continumsub(fitsfile, _order1=order1, _order2=order2, _low=low,_high=high, _interactive='yes')
+            subtracted = continumsub(fitsfile, _order1=order1, _order2=order2, _low=low,_high=high, _interactive='no')
         sky_spec = fits.open(subtracted)[0]
         y1 = sky_spec.data
         crval1 = sky_spec.header['CRVAL1']
@@ -755,3 +757,95 @@ def checkwavestd(imgl, skyfile, _interactive='yes', _type=1, arm = 'kastr'):
     return shift
 
 ##############################################################
+def delete(listfile):
+    import os, string, re, glob
+
+    if listfile[0] == '@':
+        ff = open(listfile[1:])
+        files = ff.readlines()
+        imglist = []
+        for ff in files:
+            ff = re.sub(' ', '', ff)
+            if not ff == '\n' and ff[0] != '#':
+                ff = re.sub('\n', '', ff)
+                imglist.append(ff)
+    elif ',' in listfile:
+        imglist = string.split(listfile, sep=',')
+    else:
+        imglist = [listfile]
+    lista = []
+    for _file in imglist:   lista = lista + glob.glob(_file)
+    if lista:
+        for _file in lista:
+            if os.path.isfile(_file):
+                try:
+                    os.system('rm ' + _file)
+                except:
+                    pass
+
+
+############################################################
+def combine_same_arm(lista, _output, _combine='average',_w1= 'INDEF',_w2= 'INDEF',_scale = False, _sample= '4000:5000'):
+    import re
+    from pyraf import iraf
+    iraf.noao(_doprint=0, Stdout=0)
+    iraf.imred(_doprint=0, Stdout=0)
+    iraf.ccdred(_doprint=0, Stdout=0)
+    iraf.specred(_doprint=0, Stdout=0)
+    iraf.unlearn(iraf.scombine)
+    import time 
+    hdr0 = fits.getheader(lista[0])
+    if _scale: scomb_scale = 'median'
+    else:     scomb_scale = 'none'
+    datavecs = []
+    hdrvec = []
+    for n in range(0,4):
+        list1= [i+'[*,1,'+str(n+1)+']' for i in lista]
+        list2 = ','.join(list1)
+        print(list2)
+        output1 = '_'+str(n)+_output
+        if os.path.isfile(output1):
+            os.remove(output1)
+        print(list2,output1,_combine,scomb_scale,_sample)
+        iraf.specred.scombine(list2, w1='INDEF', w2='INDEF', output=output1, combine=_combine,\
+                      scale=scomb_scale, sample=_sample)
+        hdr = fits.open(output1)
+        datavec, head = fits.getdata(output1, header=True) # these have shape (4440,)
+        datavecs.append(datavec)
+        hdrvec.append(head)
+        os.remove(output1)        
+        ####### this is just tkae the input file and replace the data
+        #hdr0[0].data[n] = hdr[0].data
+        #######
+        time.sleep(1)
+
+    for key in ['NAXIS1', 'CRVAL1', 'CD1_1', 'CRPIX1']:
+        hdr0[key] = hdrvec[0][key]
+    data3d = np.rollaxis(np.dstack(datavecs), 2)
+    if os.path.isfile(_output):
+        os.remove(_output)
+    fits.writeto(_output, data3d, hdr0)
+        
+    #hdr0.writeto(_output,overwrite=True)
+    if _w1!='INDEF' or _w2!='INDEF':
+        kast.kastutil.delete(re.sub('.fits','_cut.fits',_output))
+        iraf.scopy(_output,re.sub('.fits','_cut.fits',_output),w1=str(_w1),w2=str(_w2))
+        kast.kastutil.delete(_output)
+        os.rename(re.sub('.fits','_cut.fits',_output),_output)
+
+    return _output
+#############################################################
+def plotspectra(imglist, output):
+    fig,axs = plt.subplots(len(imglist),sharex=True)
+    for j,img in enumerate(imglist):
+        xx,yy = kast.kastutil.readspectrum(img)
+        axs[j].plot(xx,yy,'-r',label=img.split('_')[1])
+        minimo = np.min(yy[(xx>4000)&(xx<10000)])
+        massimo = np.max(yy[(xx>4000)&(xx<10000)])
+        axs[j].set_ylim(np.percentile(yy[xx>4000],1),np.percentile(yy[xx>4000],99))
+#        axs[j].set_ylim(minimo,massimo)
+        axs[j].legend(ncol=1)    
+
+    fig.set_size_inches(6,11)
+    plt.show()
+    plt.savefig(output)
