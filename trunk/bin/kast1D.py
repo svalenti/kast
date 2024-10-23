@@ -497,9 +497,14 @@ if __name__ == "__main__":
 
 ######################################################################################
     ######## atmo correction
-    if _run & 62 == 62:
+    if _run & 64 == 64:
         print('correct for atmo, to be implemented')
         # to be implemented
+        imglist = glob.glob('atmo*_r*fits')
+        atmo = imglist[1]
+        imglist = glob.glob('*merge*fits')
+        for simg in imglist:
+            kast.kastutil.correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = True)
 
                 
 ########################################################        

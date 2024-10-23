@@ -19,7 +19,6 @@ from dateutil.parser import parse
 pyversion = sys.version_info[0]
 
 
-
 def ask(question):
     if pyversion>=3:
         answ = input(question)
@@ -68,6 +67,7 @@ def checkalldata(directory=False,verbose=False, all=False):
         imglist = [i for i in imglist if '_obj' not in i]
         imglist = [i for i in imglist if '_sub' not in i]
         imglist = [i for i in imglist if 'kast_' not in i]
+        imglist = [i for i in imglist if '_atlas' not in i]
         
     else:
         if directory:
@@ -849,3 +849,99 @@ def plotspectra(imglist, output):
     fig.set_size_inches(6,11)
     plt.show()
     plt.savefig(output)
+
+################################################################
+
+def correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = False):
+    import shutil
+    from pyraf import iraf
+    iraf.noao(_doprint=0, Stdout=0)
+    iraf.imred(_doprint=0, Stdout=0)
+    iraf.ccdred(_doprint=0, Stdout=0)
+    iraf.specred(_doprint=0, Stdout=0)        
+    iraf.set(direc=kast.__path__[0] + '/')
+
+    llatmo, ffatmo = kast.kastutil.readspectrum(atmo)
+    llsci, ffsci = kast.kastutil.readspectrum(simg)
+    
+    llo2  = llatmo[(llatmo>=7550)&(llatmo<=7550)]
+    ffo2  = ffatmo[(llatmo>=7550)&(llatmo<=7550)]
+    llh2o = llatmo[(llatmo>=7100)&(llatmo<=7500)]
+    ffh2o = ffatmo[(llatmo>=7100)&(llatmo<=7500)]
+    _path = kast.__path__[0]
+
+    _skyfileh2o = 'direc$standard/ident/ATLAS_H2O.fits'
+    _skyfileo2 = 'direc$standard/ident/ATLAS_O2.fits'
+    atlas_smooto2 = '_atlas_smoot_o2.fits'
+    atlas_smooth2o = '_atlas_smoot_h2o.fits'
+    _sigma = 200
+    kast.kastutil.delete(atlas_smooto2)
+    kast.kastutil.delete(atlas_smooth2o)
+    iraf.imfilter.gauss(_skyfileh2o, output=atlas_smooth2o, sigma=_sigma)
+    iraf.imfilter.gauss(_skyfileo2, output=atlas_smooto2, sigma=_sigma)
+    llskyh2o, ffskyh2o = kast.kastutil.readspectrum(atlas_smooth2o)
+    llskyo2, ffskyo2 = kast.kastutil.readspectrum(atlas_smooto2)
+    
+    ffskyo2cut = np.interp(llo2, llskyo2, ffskyo2)
+    ffskyh2ocut = np.interp(llh2o, llskyh2o, ffskyh2o)
+    _scaleh2o = []
+    integral_h2o = []
+    for i in range(1, 21):
+            j = 0.6 + i * 0.04
+            _ffskyh2ocut = (ffskyh2ocut * j) + 1 - j
+            diff_h2o = abs(_ffskyh2ocut - ffh2o)
+            integraleh2o = np.trapz(diff_h2o, llh2o)
+            integral_h2o.append(integraleh2o)
+            _scaleh2o.append(j)
+    _scaleo2 = []
+    integral_o2 = []
+    for i in range(1, 21):
+            j = 0.6 + i * 0.04
+            _ffskyo2cut = (ffskyo2cut * j) + 1 - j
+            diff_o2 = abs(_ffskyo2cut - ffo2)
+            integraleo2 = np.trapz(diff_o2, llo2)
+            integral_o2.append(integraleo2)
+            _scaleo2.append(j)
+    sh2o = _scaleh2o[np.argmin(integral_h2o)]
+    so2 = _scaleo2[np.argmin(integral_o2)]
+    if _so2 is not None and _sh2o is not None:
+        telluric_features = (ffskyh2o * _sh2o) + 1 - _sh2o + (ffskyo2 * _so2) - _so2
+    else:
+        telluric_features = (ffskyh2o * sh2o) + 1 - sh2o + (ffskyo2 * so2) - so2
+    telluric_features = np.array([1] + list(telluric_features) + [1])
+    llskyo2 = np.array([1000] + list(llskyo2) + [15000])
+    telluric_features_cut = np.interp(llsci, llskyo2, telluric_features)
+
+    if _interactive is True:
+        answ = 'y'
+        while answ!='n':
+            plt.clf()
+            plt.plot(llsci,ffsci,'-r')
+            plt.plot(llsci,ffsci/telluric_features_cut,'-b')
+            plt.xlim(5000,10000)
+            answ = kast.kastutil.ask('do you want to scale the telluric spectra manually  [y/n] [n]? ')
+            if not answ: answ = 'n'
+            if answ in ['yes','Y','y']:
+                sh2o = kast.kastutil.ask(' h2o ? ' + str(sh2o) + ' ')
+                sh2o = float(sh2o)
+                so2 = kast.kastutil.ask(' o2 ? ' + str(so2) + ' ')
+                so2 = float(so2)
+                telluric_features = (ffskyh2o * sh2o) + 1 - sh2o + (ffskyo2 * so2) - so2
+                telluric_features = np.array([1] + list(telluric_features) + [1])
+                print(len(llskyo2),len(llsci),len(telluric_features))
+                telluric_features_cut = np.interp(llsci, llskyo2, telluric_features)
+
+
+    imge = re.sub('.fits','_e.fits',simg)
+    shutil.copyfile(simg,imge)
+    with fits.open(imge, mode='update') as hdus:
+            hdus[0].data[0][0] = hdus[0].data[0][0]/telluric_features_cut
+            hdus[0].data[1][0] = hdus[0].data[1][0]/telluric_features_cut
+            hdus[0].data[2][0] = hdus[0].data[2][0]/telluric_features_cut
+            hdus[0].data[3][0] = hdus[0].data[3][0]/telluric_features_cut
+            hdus.close()  
+            hdus.flush()  
+                
+    return llskyo2, telluric_features_cut
+
+#################################################################
