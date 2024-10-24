@@ -8,7 +8,7 @@ from matplotlib import pylab as plt
 import numpy as np
 import math
 import sys
-import pyds9
+#import pyds9
 from astropy.convolution import convolve, Box1DKernel
 from astropy.stats import sigma_clip
 from astropy.coordinates import SkyCoord
@@ -27,8 +27,8 @@ def ask(question):
     return answ
 
     
-listhd = ['OBSTYPE','MJD','EXPTIME','AIRMASS','OBJECT',\
-              'VERSION','OBJECT','RA','DEC','DATE-OBS',\
+listhd = ['MJD','EXPTIME','AIRMASS','OBJECT',\
+              'VERSION','RA','DEC','DATE-OBS',\
           'BSPLIT_N','SLIT_N','GRATNG_N','GRISM_N']
 
 def readstandard():
@@ -835,14 +835,17 @@ def combine_same_arm(lista, _output, _combine='average',_w1= 'INDEF',_w2= 'INDEF
 
     return _output
 #############################################################
-def plotspectra(imglist, output):
+def plotspectra(imglist, output,minmax=False):
     fig,axs = plt.subplots(len(imglist),sharex=True)
     for j,img in enumerate(imglist):
         xx,yy = kast.kastutil.readspectrum(img)
         axs[j].plot(xx,yy,'-r',label=img.split('_')[1])
         minimo = np.min(yy[(xx>4000)&(xx<10000)])
         massimo = np.max(yy[(xx>4000)&(xx<10000)])
-        axs[j].set_ylim(np.percentile(yy[xx>4000],1),np.percentile(yy[xx>4000],99))
+        if minmax is False:
+            axs[j].set_ylim(np.percentile(yy[xx>4000],1),np.percentile(yy[xx>4000],99))
+        else:
+            axs[j].set_ylim(np.min(yy),np.max(yy))
 #        axs[j].set_ylim(minimo,massimo)
         axs[j].legend(ncol=1)    
 

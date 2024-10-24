@@ -25,10 +25,10 @@ from dateutil.parser import parse
 pyversion = sys.version_info[0]
 
 # check that ds9 is open 
-plt.ion()
-ds9 = pyds9.DS9(str(time.time()))
-ds9.set('frame 1')
-ds9.set('scale zscale');
+#plt.ion()
+#ds9 = pyds9.DS9(str(time.time()))
+#ds9.set('frame 1')
+#ds9.set('scale zscale');
 
 if __name__ == "__main__":
     parser = OptionParser(usage=usage, description=description, version="%prog 1.0")
@@ -40,7 +40,12 @@ if __name__ == "__main__":
     parser.add_option("-i", "--interactive", action="store_true",
                       dest='interactive', default=False, help='Interactive \t\t\ [%default]')
     parser.add_option("-F", "--force", dest="force", action="store_true",default=False)
-    parser.add_option("--showplot", dest="showplot", action="store_true",default=False)
+    parser.add_option("--showspectra", dest="showspectra", action="store_true",default=False)
+    parser.add_option("--showsens", dest="showsens", action="store_true",default=False)
+    parser.add_option("--senslist", dest="senslist", default=None, type="str",
+                      help='use external sensitivity list \t [%default]')
+
+    
 #    parser.add_option("--merge", dest="merge", action="store_true",default=False)
 #    parser.add_option("--combine", dest="combine", action="store_true",default=False)
 #    parser.add_option("--redocal", dest="redocal", action="store_true",default=False)
@@ -50,8 +55,10 @@ if __name__ == "__main__":
     option, args = parser.parse_args()
     _interactive = option.interactive
     _directory = option.directory
+    _senslist = option.senslist
     _force = option.force
-    _showplot = option.showplot
+    _showsens = option.showsens
+    _showspectra = option.showspectra
     stage = option.stage
     if stage not in [None,'all','cosmic','cosmic+', 'extract','extract+','wave','wave+',\
                      'sens','sens+','flux','flux+','combine','combine+','atmo']:
@@ -112,42 +119,70 @@ if __name__ == "__main__":
     list = dictionary.keys()
     header= '                   '
     for key in kast.kastutil.listhd:
-        if key in ['DATE-OBS']:
-            header = header + '%25s' % (key)
-        else:
-            header = header + '%15s' % (key)
+        if key in ['DATE-OBS','EXPTIME','OBJECT']:
+            if key in ['DATE-OBS']:
+                header = header + '%25s' % (key)
+            else:
+                header = header + '%15s' % (key)
+    header = header + '%25s  %25s  %25s\n' % ('extracted','wave','flux')
 
     print('#'*10 + '  STANDARDS ' +'#'*10 + '\n')
     print(header)
     for img in setup_standard['kastr']:
+        imgex = re.sub('.fits','_ex.fits',img)
+        imgl = re.sub('.fits','_l.fits',img)
+        imgf = re.sub('.fits','_f.fits',img)
         value = img + ' '
         for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS']:
-                value = value + '%25s' % (str(dictionary[img][key]))
-            else:
-                value = value + '%15s' % (str(dictionary[img][key]))
+            if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                if key in ['DATE-OBS']:
+                    value = value + '%25s' % (str(dictionary[img][key]))
+                else:
+                    value = value + '%16s' % (str(dictionary[img][key]))
+                    
+        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+        else: value = value + '%25s' % ('X')
+        if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
+        else: value = value + '%25s' % ('X')
+        if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
+        else: value = value + '%25s' % ('X')
         print(value)
         
     print('#'*10 + '  OBJECT ' +'#'*10 + '\n')
     print(header)
     for img in setup_object['kastr']:
+        imgex = re.sub('.fits','_ex.fits',img)
+        imgl = re.sub('.fits','_l.fits',img)
+        imgf = re.sub('.fits','_f.fits',img)
         value = img + ' '
         for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS']:
-                value = value + '%25s' % (str(dictionary[img][key]))
-            else:
-                value = value + '%15s' % (str(dictionary[img][key]))
+            if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                if key in ['DATE-OBS']:
+                    value = value + '%25s' % (str(dictionary[img][key]))
+                else:
+                    value = value + '%15s' % (str(dictionary[img][key]))
+        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+        else: value = value + '%25s' % ('X')
+        if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
+        else: value = value + '%25s' % ('X')
+        if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
+        else: value = value + '%25s' % ('X')
         print(value)
 
     print('#'*10 + '  ARCS ' +'#'*10 + '\n')
     print(header)
     for img in setup_arc['kastr']:
+        imgex = re.sub('.fits','_ex.fits',img)
         value = img + ' '
         for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS']:
-                value = value + '%25s' % (str(dictionary[img][key]))
-            else:
-                value = value + '%15s' % (str(dictionary[img][key]))
+            if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                if key in ['DATE-OBS']:
+                    value = value + '%25s' % (str(dictionary[img][key]))
+                else:
+                    value = value + '%15s' % (str(dictionary[img][key]))
+                    
+        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+        else: value = value + '%25s' % ('X')
         print(value)
 
     objectlist={'obj':{},'std':{},'arc':{},'arcnoslit':{}}
@@ -314,15 +349,19 @@ if __name__ == "__main__":
     #####   wavelengh calibraton objects
     if _run & 8 == 8:
         for key in objectlist['obj'].keys():
-                print(key)
-                _arm = key[0]
-                _disp = key[1]
-                _dicroic = key[2]
-                _slit = key[3]
-                for img in objectlist['obj'][key]:
-                    imgex = os.path.splitext(img)[0] + '_ex.fits'
-                    imgl = os.path.splitext(img)[0] + '_l.fits'
-                    run = True
+            print(key)
+            _arm = key[0]
+            _disp = key[1]
+            _dicroic = key[2]
+            _slit = key[3]
+            for img in objectlist['obj'][key]:
+                imgex = os.path.splitext(img)[0] + '_ex.fits'
+                imgl = os.path.splitext(img)[0] + '_l.fits'
+                run = True
+                if os.path.isfile(imgex) is False:
+                    run = False
+                    print(img,'  run first extraction')
+                else:
                     if os.path.isfile(imgl):
                         if _force:
                             os.remove(imgl)
@@ -330,12 +369,10 @@ if __name__ == "__main__":
                             print('already wavelength calibrated')
                             run = False
 
-                    if run is True:
+                if run is True:
                         arcfilex = 'arc_' + imgex
                         directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
-                        print(directory)
                         listarc = glob.glob(directory + '/*fits')                    
-                        print(listarc)
                         if not listarc:
                             imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force, interactive=_interiraf)
                         else:
@@ -361,56 +398,74 @@ if __name__ == "__main__":
             for img in objectlist['std'][key]:
                 imgex = os.path.splitext(img)[0] + '_ex.fits'
                 imgl = os.path.splitext(img)[0] + '_l.fits'
+                arcfilex = 'arc_' + imgex
                 run = True
-                if os.path.isfile(imgl):
-                    if _force:
-                        os.remove(imgl)
-                    else:
-                        print('already wavelength calibrated')
-                        run = False
-                        
-                if run is True:            
-                        arcfilex = 'arc_' + imgex
-                        directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
-                        print(directory)
-                        listarc = glob.glob(directory + '/*fits')                    
-                        print(listarc)
-                        if not listarc:
-                            imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force, interactive=_interiraf)
+                if os.path.isfile(imgex) is False:
+                    print(img,'  run first extraction')
+                    run = False
+                if os.path.isfile(arcfilex) is False:
+                    print(img,' arc not found')
+                    run = False
+
+                if run is True:                                
+                    if os.path.isfile(imgl):
+                        if _force:
+                            os.remove(imgl)
                         else:
-                            _arcref = listarc[0]
-                            print('#######',_arcref)
-                            imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force, interactive=_interiraf)
-        
-                        if _arm == 'kastr':
-                            _skyfile = kast.__path__[0] + '/standard/ident/sky_new_0.fits'
-                            kast.kastutil.checkwavestd(imgl, _skyfile, _interiraf, True, arm = _arm)
-                        else:
-                            _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
-                            kast.kastutil.checkwavelength_obj(imgl, _skyfile, _interiraf, True, arm = _arm)
+                            print('already wavelength calibrated')
+                            run = False
+                            
+                    if run is True:            
+                            directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
+                            listarc = glob.glob(directory + '/*fits')                    
+                            if not listarc:
+                                imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force, interactive=_interiraf)
+                            else:
+                                _arcref = listarc[0]
+                                print('#######',_arcref)
+                                imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force, interactive=_interiraf)
+            
+                            if _arm == 'kastr':
+                                _skyfile = kast.__path__[0] + '/standard/ident/sky_new_0.fits'
+                                kast.kastutil.checkwavestd(imgl, _skyfile, _interiraf, True, arm = _arm)
+                            else:
+                                _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
+                                kast.kastutil.checkwavelength_obj(imgl, _skyfile, _interiraf, True, arm = _arm)
 #######################################################################################################
     #########   sens function
     if _run & 16 == 16:
-        for key in objectlist['std'].keys():
-            print(key)
-#   #        _output = '_'.join(key[:-1])
-            _output = re.sub('/','','_'.join(key[:-1]))
-            for img in objectlist['std'][key]:
-                imgl = os.path.splitext(img)[0] + '_l.fits'
-                if os.path.isfile(imgl):
-                    imgclean,atmofile = kast.kastutil.make_atmo(imgl)
-                    kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= True,  _function='spline3',\
-                                           _order=8, interactive=_interiraf,force=_force)
-                
+        if _senslist is not None:
+            print('use external sensitivity function, skip sens stage')
+        else:
+            for key in objectlist['std'].keys():
+                print(key)
+                _output = re.sub('/','','_'.join(key[:-1]))
+                for img in objectlist['std'][key]:
+                    imgl = os.path.splitext(img)[0] + '_l.fits'
+                    if os.path.isfile(imgl):
+                        imgclean,atmofile = kast.kastutil.make_atmo(imgl)
+                        kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= True,  _function='spline3',\
+                                               _order=8, interactive=_interiraf,force=_force)
+                    else:
+                        print('run first wavelengh solution for standard')
+                    
 #######################################################################################################
     ######## calib spectra
     if _run & 32 == 32:
         for key in objectlist['obj'].keys():
-            print(key)
-            _output = re.sub('/','','_'.join(key[:-1]))
-            senslist = glob.glob('sens*'+_output+'*fits')
-            print(senslist)
-            if len(senslist):
+            run = True
+            if _senslist is not None:
+                senslist = _senslist
+            else:
+                _output = re.sub('/','','_'.join(key[:-1]))
+                senslist = glob.glob('sens*'+_output+'*fits')
+
+            if len(senslist)==0:
+                print('No senitivity function founded')
+                print('search in the archive')
+            if len(senslist)==0:                
+                run = False
+            if run:
                 if _interactive:
                     for i,j in enumerate(senslist):
                         print(i,j)
@@ -425,6 +480,7 @@ if __name__ == "__main__":
                     imgl = os.path.splitext(img)[0] + '_l.fits'
                     imgf = os.path.splitext(img)[0] + '_f.fits'
                     kast.kastutil.calibrate(imgl, imgf, sensfile ,  force=_force, interactive=_interiraf)
+            
 ######################################################################################
 ################################################
     if _run & 64 == 64:
@@ -498,24 +554,45 @@ if __name__ == "__main__":
 ######################################################################################
     ######## atmo correction
     if _run & 128 == 128:
+        run= True
         imglist = glob.glob('atmo*_r*fits')
-        atmo = imglist[1]
+        if len(imglist)==0:
+            print('atmofile not found')
+            run = False
+        else:
+            atmo = imglist[1]
+            
         imglist = glob.glob('*merge.fits')
-        for simg in imglist:
-            kast.kastutil.correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = _interactive)
+        if len(imglist)==0:
+            run = False
+            print('merge file not found')
+
+        if run:
+            for simg in imglist:
+                kast.kastutil.correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = _interactive)
                 
 ########################################################        
     ######## plot spectra
-    if _showplot:
+    if _showspectra:
         imglist = glob.glob('*merge_e.fits')
         if len(imglist)==0:
             imglist = glob.glob('*merge.fits')
         if len(imglist)!=0:
             output = 'kast_spectra.pdf'
-            kast.kastutil.plotspectra(imglist,output)
+            kast.kastutil.plotspectra(imglist,output, minmax=False)
         else:
             print('warning, final merge files not available yet')
-        ####################
+########################################################        
+    ######## plot sens
+    if _showsens:
+        imglist = glob.glob('*sens_*.fits')
+        if len(imglist)!=0:
+            output = 'kast_sensitivity.pdf'
+            kast.kastutil.plotspectra(imglist,output, minmax=True)
+        else:
+            print('warning, final merge files not available yet')
+
+            ####################
 #        _color = ['b','r','g','m','c','k','orange','yellow','brown','b',(.3,.4,.5)]
 #        plt.figure()
 #        for key in objectlist1:
