@@ -21,6 +21,7 @@ from astropy.io import fits
 import pyds9
 import glob
 from dateutil.parser import parse
+import shutil
 
 pyversion = sys.version_info[0]
 
@@ -357,6 +358,7 @@ if __name__ == "__main__":
             for img in objectlist['obj'][key]:
                 imgex = os.path.splitext(img)[0] + '_ex.fits'
                 imgl = os.path.splitext(img)[0] + '_l.fits'
+                arcfilex = 'arc_' + imgex
                 run = True
                 if os.path.isfile(imgex) is False:
                     run = False
@@ -368,9 +370,21 @@ if __name__ == "__main__":
                         else:
                             print('already wavelength calibrated')
                             run = False
-
+                if os.path.isfile(arcfilex) is False:
+                    print('arcfile not found')
+                    directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
+                    listarc = glob.glob(directory + '/*fits')                    
+                    if not listarc:
+                        print('no arc with this setup in the archive, stop reduction ')
+                        run = False
+                    else:
+                        shutil.copy(listarc[0], os.path.basename(listarc[0]))
+                        if not os.path.isdir('database'): os.mkdir('database')
+                        shutil.copy(directory +'/database/id' + re.sub('.fits','',os.path.basename(listarc[0])),\
+                                    'database/id'+ re.sub('.fits','',os.path.basename(listarc[0])))
+                        arcfilex = os.path.basename(listarc[0])
+                        
                 if run is True:
-                        arcfilex = 'arc_' + imgex
                         directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
                         listarc = glob.glob(directory + '/*fits')                    
                         if not listarc:
@@ -453,6 +467,10 @@ if __name__ == "__main__":
     ######## calib spectra
     if _run & 32 == 32:
         for key in objectlist['obj'].keys():
+            _arm = key[0]
+            _disp = key[1]
+            _slit = key[3]
+            _dicroic = key[2]
             run = True
             if _senslist is not None:
                 senslist = _senslist
@@ -463,6 +481,8 @@ if __name__ == "__main__":
             if len(senslist)==0:
                 print('No senitivity function founded')
                 print('search in the archive')
+                directory = kast.__path__[0] + '/archive/' + str(_arm) + '/sens/' + _disp + '/' + _dicroic 
+                senslist = glob.glob(directory+'/sens*fits')
             if len(senslist)==0:                
                 run = False
             if run:

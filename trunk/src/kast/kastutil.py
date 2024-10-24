@@ -322,7 +322,6 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
             os.system('cp '+ arcref + ' ./')
             databasename = os.path.dirname(arcref) +'/database/id' +re.sub('.fits','',os.path.basename(arcref))
             if not os.path.exists('database'):  os.makedirs('database/')
-
             os.system('cp '+ databasename + ' database/' )
             arcref0 = os.path.basename(arcref)            
             identific = iraf.specred.reidentify(referenc=arcref0, images=arcfilex,
