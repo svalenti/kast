@@ -860,7 +860,8 @@ def correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = False):
     iraf.ccdred(_doprint=0, Stdout=0)
     iraf.specred(_doprint=0, Stdout=0)        
     iraf.set(direc=kast.__path__[0] + '/')
-
+    print(simg,atmo)
+    
     llatmo, ffatmo = kast.kastutil.readspectrum(atmo)
     llsci, ffsci = kast.kastutil.readspectrum(simg)
     
@@ -930,7 +931,10 @@ def correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = False):
                 telluric_features = np.array([1] + list(telluric_features) + [1])
                 print(len(llskyo2),len(llsci),len(telluric_features))
                 telluric_features_cut = np.interp(llsci, llskyo2, telluric_features)
-
+    else:
+        print('scale h2o file of ',sh2o)
+        print('scale o2 file of ',so2)
+                
 
     imge = re.sub('.fits','_e.fits',simg)
     shutil.copyfile(simg,imge)

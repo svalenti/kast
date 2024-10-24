@@ -35,13 +35,14 @@ if __name__ == "__main__":
     parser.add_option("-d", "--directory", dest="directory", default=None, type="str",
                       help='reduce data in this directory \t [%default]')
     parser.add_option("--stage", dest="stage", default=None, type="str",
-                      help='reduce data a single stage \t [%default, cosmic, cosmic+, extract, extract+, wave, wave+, sens, sens+, flux, flux+, atmo]')   
+                      help='reduce data a single stage \t [%default, cosmic, cosmic+, extract, extract+,\
+                      wave, wave+, sens, sens+, flux, flux+, combine, combine+, atmo]')   
     parser.add_option("-i", "--interactive", action="store_true",
                       dest='interactive', default=False, help='Interactive \t\t\ [%default]')
     parser.add_option("-F", "--force", dest="force", action="store_true",default=False)
-    parser.add_option("--merge", dest="merge", action="store_true",default=False)
     parser.add_option("--showplot", dest="showplot", action="store_true",default=False)
-    parser.add_option("--combine", dest="combine", action="store_true",default=False)
+#    parser.add_option("--merge", dest="merge", action="store_true",default=False)
+#    parser.add_option("--combine", dest="combine", action="store_true",default=False)
 #    parser.add_option("--redocal", dest="redocal", action="store_true",default=False)
 #    parser.add_option("--docosmic", dest="docosmic", action="store_true",default=False)
 
@@ -51,10 +52,9 @@ if __name__ == "__main__":
     _directory = option.directory
     _force = option.force
     _showplot = option.showplot
-    _merge = option.merge
-    _combine = option.combine
     stage = option.stage
-    if stage not in [None,'all','cosmic','cosmic+', 'extract','extract+','wave','wave+','sens','sens+','flux','flux+','atmo']:
+    if stage not in [None,'all','cosmic','cosmic+', 'extract','extract+','wave','wave+',\
+                     'sens','sens+','flux','flux+','combine','combine+','atmo']:
         sys.argv.append('--help')
         option, args = parser.parse_args()
         
@@ -63,21 +63,24 @@ if __name__ == "__main__":
     #  0001000  8   wave
     #  0001000  16  sens
     #  0010000  32  flux
-    #  0100000  64  atmo
+    #  0100000  64  combine
+    #  0100000  128  atmo
 
     _run=0
     if stage == 'cosmic':      _run = _run + 2
-    elif stage == 'cosmic+':   _run = _run + 2 + 4 + 8 + 16 + 32 + 64
+    elif stage == 'cosmic+':   _run = _run + 2 + 4 + 8 + 16 + 32 + 64 + 128
     elif stage == 'extract':   _run = _run + 4
-    elif stage == 'extract+':  _run = _run + 4  + 8 + 16 + 32 + 64
+    elif stage == 'extract+':  _run = _run + 4  + 8 + 16 + 32 + 64 + 128
     elif stage == 'wave':      _run = _run + 8
-    elif stage == 'wave+':     _run = _run + 8 + 16 + 32 + 64
+    elif stage == 'wave+':     _run = _run + 8 + 16 + 32 + 64 + 128 
     elif stage == 'sens':      _run = _run + 16
-    elif stage == 'sens+':     _run = _run + 16 + 32 + 64
+    elif stage == 'sens+':     _run = _run + 16 + 32 + 64 + 128
     elif stage == 'flux':      _run = _run + 32 
-    elif stage == 'flux+':     _run = _run + 32 + 64
-    elif stage == 'atmo':      _run = _run + 64
-    elif stage == 'all':       _run = _run + 2 + 4 + 8 + 16 + 32 + 64
+    elif stage == 'flux+':     _run = _run + 32 + 64 + 128
+    elif stage == 'combine':   _run = _run + 64
+    elif stage == 'combine+':  _run = _run + 64 + 128
+    elif stage == 'atmo':      _run = _run + 128
+    elif stage == 'all':       _run = _run + 2 + 4 + 8 + 16 + 32 + 64 + 128
 
     print(_run)    
 
@@ -424,53 +427,50 @@ if __name__ == "__main__":
                     kast.kastutil.calibrate(imgl, imgf, sensfile ,  force=_force, interactive=_interiraf)
 ######################################################################################
 ################################################
-    objectlist1 = {}
-    for key in objectlist['obj'].keys():
-        for img in objectlist['obj'][key]:
-            imgdata, imghdr = fits.getdata(img, header=True)
+    if _run & 64 == 64:
+        objectlist1 = {}
+        for key in objectlist['obj'].keys():
+            for img in objectlist['obj'][key]:
+                imgdata, imghdr = fits.getdata(img, header=True)
+                _object = imghdr.get('OBJECT')
+                #_date = parse(imghdr.get('DATE-OBS')).strftime("%Y%m%d")
+                if _object not in objectlist1:
+                    objectlist1[_object]=[]
+                objectlist1[_object].append(re.sub('.fits','_f.fits',img))
+        
+        objectlist2 = {}
+        for _object in objectlist1.keys():
+            if _object not in objectlist2:
+                objectlist2[_object]=[]
+                
+            imgdata, imghdr = fits.getdata(objectlist1[_object][0], header=True)
             _object = imghdr.get('OBJECT')
-            #_date = parse(imghdr.get('DATE-OBS')).strftime("%Y%m%d")
-            if _object not in objectlist1:
-                objectlist1[_object]=[]
-            objectlist1[_object].append(re.sub('.fits','_f.fits',img))
-
-    objectlist2 = {}
-    for _object in objectlist1.keys():
-        if _object not in objectlist2:
-            objectlist2[_object]=[]
+            _date = parse(imghdr.get('DATE-OBS')).strftime("%Y%m%d")
+        
+            _output = 'kast_'+ _object +'_'+_date+'_blue.fits'
+            if _output not in objectlist2:
+                objectlist2[_object].append(_output)
+                
+            _output = 'kast_'+ _object +'_'+_date+'_red.fits'
+            if _output not in objectlist2:
+                objectlist2[_object].append(_output)
             
-        imgdata, imghdr = fits.getdata(objectlist1[_object][0], header=True)
-        _object = imghdr.get('OBJECT')
-        _date = parse(imghdr.get('DATE-OBS')).strftime("%Y%m%d")
-
-        _output = 'kast_'+ _object +'_'+_date+'_blue.fits'
-        if _output not in objectlist2:
-            objectlist2[_object].append(_output)
-            
-        _output = 'kast_'+ _object +'_'+_date+'_red.fits'
-        if _output not in objectlist2:
-            objectlist2[_object].append(_output)
-            
-#    print(objectlist1)
-#    print(objectlist2)
-
 ################################################
-#    merge different exposures
-    if _merge:
         for key in objectlist1:
             listcomb  = [i for i in objectlist1[key] if '_b' in i]
             _output  = [i for i in objectlist2[key] if '_blue' in i][0]
-            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',_w1= 'INDEF',_w2= 5650,_scale = True, _sample= '4000:5000')
+            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',
+                                           _w1= 'INDEF',_w2= 5650,_scale = True, _sample= '4000:5000')
             
             listcomb  = [i for i in objectlist1[key] if '_r' in i]
             _output  = [i for i in objectlist2[key] if '_red' in i][0]
-            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',_w1= 5450 ,_w2= 'INDEF',_scale = True, _sample= '6000:7000')
+            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',_w1= 5450 ,
+                                           _w2= 'INDEF',_scale = True, _sample= '6000:7000')
 
 ########################################################
-#    combine different exposures
-    if _combine:
-        plt.figure()
-        plt.ion()
+        if _interactive:
+            plt.figure()
+            plt.ion()
         for key in objectlist2:
             if _interactive:
                 plt.clf()
@@ -497,23 +497,24 @@ if __name__ == "__main__":
 
 ######################################################################################
     ######## atmo correction
-    if _run & 64 == 64:
-        print('correct for atmo, to be implemented')
-        # to be implemented
+    if _run & 128 == 128:
         imglist = glob.glob('atmo*_r*fits')
         atmo = imglist[1]
-        imglist = glob.glob('*merge*fits')
+        imglist = glob.glob('*merge.fits')
         for simg in imglist:
-            kast.kastutil.correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = True)
-
+            kast.kastutil.correct_for_atmo(simg,atmo, _so2=None,_sh2o= None, _interactive = _interactive)
                 
 ########################################################        
     ######## plot spectra
     if _showplot:
-        imglist = glob.glob('*merge*fits')
-        output = 'kast_spectra.pdf'
-        kast.kastutil.plotspectra(imglist,output)
-
+        imglist = glob.glob('*merge_e.fits')
+        if len(imglist)==0:
+            imglist = glob.glob('*merge.fits')
+        if len(imglist)!=0:
+            output = 'kast_spectra.pdf'
+            kast.kastutil.plotspectra(imglist,output)
+        else:
+            print('warning, final merge files not available yet')
         ####################
 #        _color = ['b','r','g','m','c','k','orange','yellow','brown','b',(.3,.4,.5)]
 #        plt.figure()
