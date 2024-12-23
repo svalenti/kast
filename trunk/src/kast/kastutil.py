@@ -117,6 +117,8 @@ def checkalldata(directory=False,verbose=False, all=False):
         
         if dictionary[img]['EXPTIME'] == 0:
             setup_bias[dictionary[img]['VERSION']].append(img)
+        elif dictionary[img]['GRATNG_N'].lower() in ['gmirror']:
+            skip[dictionary[img]['VERSION']].append(img)
         elif dictionary[img]['OBJECT'].lower() in ['flat','flats']:
             setup_flat[dictionary[img]['VERSION']].append(img)
         elif dictionary[img]['LAMPSTAD'] in ['on']:
