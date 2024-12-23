@@ -28,7 +28,7 @@ def ask(question):
 
     
 listhd = ['MJD','EXPTIME','AIRMASS','OBJECT',\
-              'VERSION','RA','DEC','DATE-OBS',\
+              'VERSION','RA','DEC','DATE-OBS','LAMPSTAJ',\
           'BSPLIT_N','SLIT_N','GRATNG_N','GRISM_N']
 
 def readstandard():
@@ -117,9 +117,11 @@ def checkalldata(directory=False,verbose=False, all=False):
         
         if dictionary[img]['EXPTIME'] == 0:
             setup_bias[dictionary[img]['VERSION']].append(img)
-        elif dictionary[img]['OBJECT'] in ['flat','FLAT','Flats']:
+        elif dictionary[img]['OBJECT'].lower() in ['flat','flats']:
             setup_flat[dictionary[img]['VERSION']].append(img)
-        elif dictionary[img]['OBJECT'] in ['Arcs']:
+        elif dictionary[img]['OBJECT'].lower() in ['arcs','hgcdarnehe_arc']:
+            setup_arc[dictionary[img]['VERSION']].append(img)
+        elif dictionary[img]['LAMPSTAJ'].lower() in ['on']:# or dictionary[img]['LAMPSTAG'].lower() in ['on']:
             setup_arc[dictionary[img]['VERSION']].append(img)
         elif min(distance)> 10:
             setup_object[dictionary[img]['VERSION']].append(img)

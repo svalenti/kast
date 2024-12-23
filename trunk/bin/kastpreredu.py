@@ -15,24 +15,9 @@ import time
 import re
 import sys
 import numpy as np
-#from scipy.interpolate import LSQBivariateSpline, LSQUnivariateSpline
-#from scipy.interpolate import interp1d
-#from scipy.optimize import fmin
-#import numpy.polynomial.legendre as leg
 from matplotlib import pylab as plt
 from astropy.io import fits
 import pyds9
-#import glob
-#from deimos import __path__ as _path
-#from deimos import irafext
-#from deimos import deimoswave
-#import string
-#os.environ["XPA_METHOD"] = 'unix'
-
-#from astropy.coordinates import SkyCoord
-#from astropy import units as u
-#std, rastd, decstd, magstd = deimosutil.readstandard('standard_deimos_mab.txt')
-#scal = np.pi / 180.
                 
 pyversion = sys.version_info[0]
 
@@ -42,11 +27,6 @@ ds9 = pyds9.DS9(str(time.time()))
 ds9.set('frame 1')
 ds9.set('scale zscale');
 
-# open two plot figures that will be used in the script 
-#fig3 = plt.figure(3)
-#fig2 = plt.figure(2)
-#verbose= True
-
 if __name__ == "__main__":
     parser = OptionParser(usage=usage, description=description, version="%prog 1.0")
     parser.add_option("-d", "--directory", dest="directory", default=None, type="str",
@@ -55,26 +35,12 @@ if __name__ == "__main__":
                       help='reduce data a single stage \t [%default, trim,trim+,sky,sky+,trace,trace+,extract,extract+,wave,wave+,flux,flux+]')   
     parser.add_option("-i", "--interactive", action="store_true",
                       dest='interactive', default=False, help='Interactive \t\t\ [%default]')
-#    parser.add_option("-F", "--force", dest="force", action="store_true",default=False)
-#    parser.add_option("--iraf", dest="iraf", action="store_true")
-#    parser.add_option("--nosky", dest="nosky", action="store_true")
-#    parser.add_option("--redo", action="store_true",
-#                      dest='redo', default=False, help='redo \t\t\ [%default]')
-#    parser.add_option("--shift", dest="shift", default=None, type=float,
-#                      help='initial wavelength shift \t [%default]')
     
     option, args = parser.parse_args()
     _interactive = option.interactive
-#    _redo = option.redo
-#    _iraf = option.iraf
-#    _nsky = option.nosky
     _directory = option.directory
-#    _force = option.force
     stage = option.stage
-#    if option.shift:
-#        initial_shift = option.shift
-#    else:
-#        initial_shift = 0.
+
     if _interactive:
         _verbose= True
         _interiraf= 'yes'
@@ -131,20 +97,24 @@ if __name__ == "__main__":
         _rdnoise = 1
         _gain = 1
         _order = 80
-        kast.kastutil.combineflat(setup_flat[arm], masterflat,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
+        if len(setup_flat[arm]):
+            kast.kastutil.combineflat(setup_flat[arm], masterflat,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
 
-        kast.kastutil.ccdprocimage(masterflat,'t'+masterflat,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
-                                   _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm], _flat = '',
-                                   _readaxi= readaxi[arm],direction = specredaxis[arm])
+            kast.kastutil.ccdprocimage(masterflat,'t'+masterflat,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
+                                       _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm], _flat = '',
+                                       _readaxi= readaxi[arm],direction = specredaxis[arm])
         
-        kast.kastutil.responseflat('t'+masterflat , 't'+masterflat,  'n'+masterflat,
-                                   _order, function= 'spline3',direction = specredaxis[arm],_arm=arm, _interactive = _interiraf)
+            kast.kastutil.responseflat('t'+masterflat , 't'+masterflat,  'n'+masterflat,
+                                       _order, function= 'spline3',direction = specredaxis[arm],_arm=arm, _interactive = _interiraf)
+        else:
+            print('Warning no flats for ' + arm)
     ############################
 
     print('pre-reduce objects')
     for arm in setup_object.keys():
         if _verbose:
             for img in setup_object[arm]:
+                print(dictionary[img]['OBJECT'],dictionary[img]['EXPTIME'])
                 ds9.set_np2arr(dictionary[img]['fits'][0].data)
                 answer = kast.kastutil.ask('is this a science target [y/n] [y]?')
                 if not answer:
