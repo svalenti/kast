@@ -16,7 +16,7 @@ setup(
     packages=['kast'],
     package_dir={'': 'src/'},
     package_data={'kast': ["standard/*","standard/*/*",\
-                           "archive/*/*/*/*/*/*/*",\
+                           "archive/*/*/*/*/*/*/*","archive/*/*/*",\
                            "archive/*/*/*/*/*/*"]})
 
 #                             "resources/*/*/*","resources/*/*"]}

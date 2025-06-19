@@ -453,12 +453,16 @@ if __name__ == "__main__":
         else:
             for key in objectlist['std'].keys():
                 print(key)
+                if key[1] in ['600/7500','600/4310']:
+                    split = False
+                else:
+                    split = True
                 _output = re.sub('/','','_'.join(key[:-1]))
                 for img in objectlist['std'][key]:
                     imgl = os.path.splitext(img)[0] + '_l.fits'
                     if os.path.isfile(imgl):
                         imgclean,atmofile = kast.kastutil.make_atmo(imgl)
-                        kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= True,  _function='spline3',\
+                        kast.kastutil.sensfunc(imgclean, _output ,_key=key,_split= split,  _function='spline3',\
                                                _order=8, interactive=_interiraf,force=_force)
                     else:
                         print('run first wavelengh solution for standard')

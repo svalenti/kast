@@ -27,9 +27,9 @@ def ask(question):
     return answ
 
     
-listhd = ['MJD','EXPTIME','AIRMASS','OBJECT',\
+listhd = ['MJD','EXPTIME','AIRMASS','OBJECT','NAXIS1','NAXIS2',\
           'VERSION','RA','DEC','DATE-OBS','LAMPSTAJ','LAMPSTAD',\
-          'BSPLIT_N','SLIT_N','GRATNG_N','GRISM_N']
+          'BSPLIT_N','SLIT_N','GRATNG_N','GRISM_N', 'DATASEC']
 
 def readstandard():
     path = kast.__path__[0]
@@ -222,7 +222,7 @@ def responseflat(_calibration , _normalization, _output, _order= 80, function= '
 
 def dvex():
     dv = {}
-    dv['line'] = {'452/3306': 1000, '300/7500': 1200, }
+    dv['line'] = {'452/3306': 1000, '300/7500': 1200,'600/7500': 1200, '600/4310': 1000}
     dv['std'] = {'_t_order': 6, '_t_niter': 50, '_t_sample': '*', '_t_nlost': 20, '_width': 10, '_radius': 10,
                  '_weights': 'variance',
                  '_nsum': 30, '_t_step': 10, '_t_nsum': 10, '_lower': -10, '_upper': 10, '_b_sample': '-40:-20,20:40',
@@ -349,6 +349,16 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
 #    else:
 #        pass
 #    return imglist
+
+def searchbias(arm):
+    imglist = glob.glob(kast.__path__[0]+'/archive/' + arm + '/bias/*')
+    if len(imglist):
+        return imglist[0]
+    else:
+        return None
+#    else:
+#        pass
+
 
 
 def updateheader(filename, dimension, headerdict):
@@ -506,7 +516,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                     _order1 = 25
                 else:
                     _w01 = 5200
-                    _w02 = 6000 
+                    _w02 = 6000 # 6000 
                     _w11 = 5850
                     _w12 = 12000
                     sens0 = '_sensr0.fits'
@@ -529,6 +539,7 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                 iraf.scopy(standardfile, obj1, w1=_w11, w2=_w12)
         
                 ######
+                print(obj0,std0,_extinctdir + _extinction,_caldir,_observatory,refstar,_airmass,_exptime,interactive)
                 iraf.specred.standard(input=obj0, output=std0, extinct=_extinctdir + _extinction,
                                       caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
                                       exptime=_exptime, interac=interactive)
@@ -553,6 +564,8 @@ def sensfunc(standardfile, _output = None, _key=('kastb','x'), _split = False, _
                 
                 print('split')
             else:
+                print('nosplit')
+                print(standardfile,_outputstd,refstar,_caldir,_observatory,_extinction,_airmass,_extinctdir)
                 iraf.specred.standard(input=standardfile, output=_outputstd, extinct=_extinctdir + _extinction,
                                       caldir=_caldir, observa=_observatory, star_nam=refstar, airmass=_airmass,
                                       exptime=_exptime, interac=interactive)
@@ -600,12 +613,12 @@ def checkwavelength_arc(xx1, yy1, xx2, yy2, xmin, xmax, _interactive='yes'):
     from numpy import array, trapz, compress
     from numpy import interp as ninterp
 
-    minimo = max(min(xx1), min(xx2)) + 60
-    massimo = min(max(xx1), max(xx2)) - 60
+    minimo = max(min(xx1), min(xx2)) + 100
+    massimo = min(max(xx1), max(xx2)) - 100
     yy1 = [0 if e < 0 else e for e in array(yy1)]
     yy2 = [0 if e < 0 else e for e in array(yy2)]
     _shift, integral = [], []
-    for shift in range(-600, 600, 1):
+    for shift in range(-1000, 1000, 1):
         xxnew = xx1 + shift / 10.
         yy2interp = ninterp(xxnew, xx2, yy2)
         yy2timesyy = yy2interp * yy1
@@ -625,9 +638,9 @@ def checkwavelength_arc(xx1, yy1, xx2, yy2, xmin, xmax, _interactive='yes'):
         ratio = trapz(yy1, xx1) / trapz(yy2, xx2)
         yy3 = array(yy2) * float(ratio)
         xx4 = xx1 + result
-        plot(xx1, yy1, label='spectrum')
-        plot(xx2, yy3, label='reference sky')
-        plot(xx4, yy1, label='shifted spectrum')
+        plot(xx1, yy1, ':', label='spectrum')
+        plot(xx2, yy3, '-', label='reference sky', linewidth=2)
+        plot(xx4, yy1, '--', label='shifted spectrum')
         legend(numpoints=1, markerscale=1.5)
         if xmin != '' and xmax != '':
             xlim(xmin, xmax)
