@@ -127,64 +127,68 @@ if __name__ == "__main__":
                 header = header + '%15s' % (key)
     header = header + '%25s  %25s  %25s\n' % ('extracted','wave','flux')
 
-    print('#'*10 + '  STANDARDS ' +'#'*10 + '\n')
-    print(header)
-    for img in setup_standard['kastr']:
-        imgex = re.sub('.fits','_ex.fits',img)
-        imgl = re.sub('.fits','_l.fits',img)
-        imgf = re.sub('.fits','_f.fits',img)
-        value = img + ' '
-        for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS','EXPTIME','OBJECT']:
-                if key in ['DATE-OBS']:
-                    value = value + '%25s' % (str(dictionary[img][key]))
-                else:
-                    value = value + '%16s' % (str(dictionary[img][key]))
-                    
-        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
-        else: value = value + '%25s' % ('X')
-        if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
-        else: value = value + '%25s' % ('X')
-        if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
-        else: value = value + '%25s' % ('X')
-        print(value)
-        
-    print('#'*10 + '  OBJECT ' +'#'*10 + '\n')
-    print(header)
-    for img in setup_object['kastr']:
-        imgex = re.sub('.fits','_ex.fits',img)
-        imgl = re.sub('.fits','_l.fits',img)
-        imgf = re.sub('.fits','_f.fits',img)
-        value = img + ' '
-        for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS','EXPTIME','OBJECT']:
-                if key in ['DATE-OBS']:
-                    value = value + '%25s' % (str(dictionary[img][key]))
-                else:
-                    value = value + '%15s' % (str(dictionary[img][key]))
-        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
-        else: value = value + '%25s' % ('X')
-        if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
-        else: value = value + '%25s' % ('X')
-        if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
-        else: value = value + '%25s' % ('X')
-        print(value)
 
-    print('#'*10 + '  ARCS ' +'#'*10 + '\n')
-    print(header)
-    for img in setup_arc['kastr']:
-        imgex = re.sub('.fits','_ex.fits',img)
-        value = img + ' '
-        for key in kast.kastutil.listhd:
-            if key in ['DATE-OBS','EXPTIME','OBJECT']:
-                if key in ['DATE-OBS']:
-                    value = value + '%25s' % (str(dictionary[img][key]))
-                else:
-                    value = value + '%15s' % (str(dictionary[img][key]))
-                    
-        if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
-        else: value = value + '%25s' % ('X')
-        print(value)
+    for arm in setup_object.keys():
+        print('#'*10 + '  STANDARDS ' +'#'*10 + '\n')
+        print(header)
+        for img in setup_standard[arm]:
+            imgex = re.sub('.fits','_ex.fits',img)
+            imgl = re.sub('.fits','_l.fits',img)
+            imgf = re.sub('.fits','_f.fits',img)
+            value = img + ' '
+            for key in kast.kastutil.listhd:
+                if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                    if key in ['DATE-OBS']:
+                        value = value + '%25s' % (str(dictionary[img][key]))
+                    else:
+                        value = value + '%16s' % (str(dictionary[img][key]))
+                        
+            if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+            else: value = value + '%25s' % ('X')
+            if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
+            else: value = value + '%25s' % ('X')
+            if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
+            else: value = value + '%25s' % ('X')
+            print(value)
+            
+        print('#'*10 + '  OBJECT ' +'#'*10 + '\n')
+        print(header)
+        for img in setup_object[arm]:
+            imgex = re.sub('.fits','_ex.fits',img)
+            imgl = re.sub('.fits','_l.fits',img)
+            imgf = re.sub('.fits','_f.fits',img)
+            value = img + ' '
+            for key in kast.kastutil.listhd:
+                if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                    if key in ['DATE-OBS']:
+                        value = value + '%25s' % (str(dictionary[img][key]))
+                    else:
+                        value = value + '%15s' % (str(dictionary[img][key]))
+            if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+            else: value = value + '%25s' % ('X')
+            if os.path.isfile(imgl):   value = value + '%25s' % (imgl)
+            else: value = value + '%25s' % ('X')
+            if os.path.isfile(imgf):   value = value + '%25s' % (imgf)
+            else: value = value + '%25s' % ('X')
+            print(value)
+        
+        print('#'*10 + '  ARCS ' +'#'*10 + '\n')
+        print(header)
+        for img in setup_arc[arm]:
+            imgex = re.sub('.fits','_ex.fits',img)
+            value = img + ' '
+            for key in kast.kastutil.listhd:
+                if key in ['DATE-OBS','EXPTIME','OBJECT']:
+                    if key in ['DATE-OBS']:
+                        value = value + '%25s' % (str(dictionary[img][key]))
+                    else:
+                        value = value + '%15s' % (str(dictionary[img][key]))
+                        
+            if os.path.isfile(imgex):   value = value + '%25s' % (imgex)
+            else: value = value + '%25s' % ('X')
+            print(value)
+
+   ##############################################
 
     objectlist={'obj':{},'std':{},'arc':{},'arcnoslit':{}}
     ###########
