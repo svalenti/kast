@@ -92,18 +92,19 @@ def checkalldata(directory=False,verbose=False, all=False):
             if  dictionary[img]['DATE-OBS'] is not None:
                 _mjd = time.Time(dictionary[img]['DATE-OBS']).mjd
                 dictionary[img]['MJD'] = _mjd
-
                 
-    setup_object={'kastb':[],
-                  'kastr':[]}
-    setup_bias={'kastb':[],
-                  'kastr':[]}
-    setup_arc={'kastb':[],
-                  'kastr':[]}
-    setup_flat={'kastb':[],
-                'kastr':[]}
-    skip={'kastb':[],
-          'kastr':[]}
+    arms = list(set([ dictionary[i]['VERSION'] for i in dictionary.keys()]))
+    setup_object={}
+    setup_bias={}
+    setup_arc={}
+    setup_flat={}
+    skip={}
+    for arm in arms:
+        setup_object[arm] = []
+        setup_bias[arm] = []
+        setup_arc[arm] = []
+        setup_flat[arm] = []
+        skip[arm] = []
 
     rastd, decstd, namestd = readstandard()
     for img in dictionary:
