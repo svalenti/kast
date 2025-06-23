@@ -459,6 +459,8 @@ if __name__ == "__main__":
                 print(key)
                 if key[1] in ['600/7500','600/4310']:
                     split = False
+                elif key[1] in ['452/3306'] and key[2] in ['mirror']:
+                    split = False
                 else:
                     split = True
                 _output = re.sub('/','','_'.join(key[:-1]))
@@ -509,9 +511,9 @@ if __name__ == "__main__":
                     imgf = os.path.splitext(img)[0] + '_f.fits'
                     kast.kastutil.calibrate(imgl, imgf, sensfile ,  force=_force, interactive=_interiraf)
             
-######################################################################################
+#####################################################################
 ################################################
-    if _run & 64 == 64:
+    if _run & 64 == 64: ##### combine
         objectlist1 = {}
         for key in objectlist['obj'].keys():
             for img in objectlist['obj'][key]:
@@ -541,44 +543,61 @@ if __name__ == "__main__":
             
 ################################################
         for key in objectlist1:
+            # combine the blue arm files 
             listcomb  = [i for i in objectlist1[key] if '_b' in i]
             _output  = [i for i in objectlist2[key] if '_blue' in i][0]
-            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',
-                                           _w1= 'INDEF',_w2= 5650,_scale = True, _sample= '4000:5000')
-            
+            if len(listcomb):
+                if dictionary[re.sub('_f','',listcomb[0])]['BSPLIT_N'] in ['mirror']:
+                    ww2 = 'INDEF'
+                else:
+                    ww2 = 5650
+                kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',
+                                               _w1= 'INDEF',_w2= ww2,_scale = True, _sample= '4000:5000')
+            else:
+                print('no data for the blue arm for '+str(key))
+
+            # combine the red arm files                 
             listcomb  = [i for i in objectlist1[key] if '_r' in i]
             _output  = [i for i in objectlist2[key] if '_red' in i][0]
-            kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',_w1= 5450 ,
-                                           _w2= 'INDEF',_scale = True, _sample= '6000:7000')
-
+            if len(listcomb):
+                kast.kastutil.combine_same_arm(listcomb, _output, _combine='average',_w1= 5450 ,
+                                               _w2= 'INDEF',_scale = True, _sample= '6000:7000')
+            else:
+                print('no data for the red arm for '+str(key))
 ########################################################
+       # combine red and blue
         if _interactive:
             plt.figure()
             plt.ion()
         for key in objectlist2:
-            if _interactive:
-                plt.clf()
-                ww0,ff0= kast.kastutil.readspectrum(objectlist2[key][0])
-                plt.plot(ww0,ff0,'-b',label='blue')
-                ww1,ff1= kast.kastutil.readspectrum(objectlist2[key][1])
-                plt.plot(ww1,ff1,'-r',label='blue')
-            try:
-                _output = re.sub('blue','merge',objectlist2[key][0])
-                output = kast.kastutil.combine_same_arm(objectlist2[key], _output, _combine='average',_w1= 'INDEF',\
-                                                        _w2= 'INDEF',_scale = True, _sample= '5500:5600')
+            if os.path.isfile(objectlist2[key][0]) and os.path.isfile(objectlist2[key][1]):
                 if _interactive:
-                    ww3,ff3= kast.kastutil.readspectrum(_output)
-                    plt.plot(ww3,ff3,'-g',label='merge')
-            except:
-                print('error merging')
-            if _interactive:
-                plt.xlim(5200,6000)
-                plt.ylim(np.percentile(ff1,1),np.percentile(ff1,99))
-                plt.legend(ncol=1)
-                answ = kast.kastutil.ask('stop here')
-
-
-
+                    plt.clf()
+                    ww0,ff0= kast.kastutil.readspectrum(objectlist2[key][0])
+                    plt.plot(ww0,ff0,'-b',label='blue')
+                    ww1,ff1= kast.kastutil.readspectrum(objectlist2[key][1])
+                    plt.plot(ww1,ff1,'-r',label='blue')
+                try:
+                    _output = re.sub('blue','merge',objectlist2[key][0])
+                    output = kast.kastutil.combine_same_arm(objectlist2[key], _output, _combine='average',_w1= 'INDEF',\
+                                                            _w2= 'INDEF',_scale = True, _sample= '5500:5600')
+                    if _interactive:
+                        ww3,ff3= kast.kastutil.readspectrum(_output)
+                        plt.plot(ww3,ff3,'-g',label='merge')
+                except:
+                    print('error merging')
+                if _interactive:
+                    plt.xlim(5200,6000)
+                    plt.ylim(np.percentile(ff1,1),np.percentile(ff1,99))
+                    plt.legend(ncol=1)
+                    answ = kast.kastutil.ask('stop here')
+            else:
+                print('one of the arm file is missing, can not merge blue and red for object '+str(key))
+                _output = re.sub('blue','merge',objectlist2[key][0])
+                if os.path.isfile(objectlist2[key][0]):
+                    shutil.copyfile(objectlist2[key][0],_output)
+                else:
+                    shutil.copyfile(objectlist2[key][1],_output)
 ######################################################################################
     ######## atmo correction
     if _run & 128 == 128:
@@ -587,8 +606,12 @@ if __name__ == "__main__":
         if len(imglist)==0:
             print('atmofile not found')
             run = False
+            imglist = glob.glob('atmo*fits') 
+            if len(imglist)>0:
+                run = True
+                atmo = imglist[0]
         else:
-            atmo = imglist[1]
+            atmo = []
             
         imglist = glob.glob('*merge.fits')
         if len(imglist)==0:

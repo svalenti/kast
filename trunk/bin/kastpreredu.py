@@ -154,6 +154,17 @@ if __name__ == "__main__":
                     trimsec[arm] = '[1:2048,'+str(trima)+':'+str(trimb)+']'
                 else:
                     trimsec[arm] =  '['+str(trima)+':'+str(trimb)+',24:2200]'
+            elif  dictionary[setup_object[arm][0]]['GRISM_N'] in ['452/3306']:
+                if arm =='kastb': # it should be, but I leave the kastr option just in case
+                    # this is not perfect. if there are file with mirror and file with dicroit will do something bad
+                    if dictionary[setup_object[arm][0]]['BSPLIT_N'] in ['mirror']:
+                        # if there is no dicroit I have flux in the red
+                        print('warning: first file does not have dicroit, I assume you want all the flux in the red part of the blue channel')
+                        trimsec[arm] = '[1:2000,'+str(trima)+':'+str(trimb)+']'
+                    else:
+                        trimsec[arm] = '[1:1900,'+str(trima)+':'+str(trimb)+']'
+                else:
+                    trimsec[arm] =  '['+str(trima)+':'+str(trimb)+',60:2200]'
             else:    
                 if arm =='kastb':
                     trimsec[arm] = '[1:1900,'+str(trima)+':'+str(trimb)+']'
