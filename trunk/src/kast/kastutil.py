@@ -7,7 +7,6 @@ import re
 from matplotlib import pylab as plt
 import numpy as np
 import math
-import sys
 #import pyds9
 from astropy.convolution import convolve, Box1DKernel
 from astropy.stats import sigma_clip
@@ -15,9 +14,22 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 import kast
 from dateutil.parser import parse
+import sys
 
 pyversion = sys.version_info[0]
 
+#def JDnow(datenow='',verbose=False):
+#        import datetime
+ #       import time
+#        _JD0=2455927.5
+#        if not datenow:
+#            datenow = datetime.datetime(time.gmtime().tm_year, time.gmtime().tm_mon, time.gmtime().tm_mday,
+#                                        time.gmtime().tm_hour, time.gmtime().tm_min, time.gmtime().tm_sec)
+#        _JDtoday=_JD0 + (datenow-datetime.datetime(2012, 1, 1,00,00,00)).seconds/(3600. * 24)+\
+#                   (datenow - datetime.datetime(2012, 1, 1,00,00,00)).days
+#        if verbose:
+#            print('JD= '+str(_JDtoday))
+#        return _JDtoday
 
 def ask(question):
     if pyversion>=3:
@@ -234,6 +246,7 @@ def dvex():
                  '_resize': 'yes'}
     dv['dispaxis'] = {'kastb':1,'kastr':2}
     dv['ident']= {'cradius':10, 'fwhm':7, 'function':'legendre','order':5}
+    dv['nominal_dispersion'] = {('kastb','452/3306'):1.38, ('kastr','300/7500'): 2.53}
     return dv
 
 def extractspectrum(img,imgex,_reference,_trace,_fittrac,_find,_recenter,_edit,
@@ -246,7 +259,7 @@ def extractspectrum(img,imgex,_reference,_trace,_fittrac,_find,_recenter,_edit,
         elif _interactive=='yes':
             hdr0 = fits.getheader(imgex)
             _ob = hdr0.get('OBJECT')
-            print(_ob)
+            print(_ob,img)
             answ = kast.kastutil.ask('Already extracted. do you want to extract again? [Y/[N]] ')
             if answ.lower() in ['no','n','']:
                 run = False
@@ -306,7 +319,13 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
     imgl = os.path.splitext(img)[0] + '_l.fits'
     imgex = os.path.splitext(img)[0] + '_ex.fits'
     run = True
-
+    
+    hdu = fits.open(arcfilex)
+    if arm == 'kastr':
+        disp = hdu[0].header['GRATNG_N']
+    elif arm == 'kastb':
+        disp = hdu[0].header['GRISM_N']
+        
     if run is True:
         from pyraf import iraf
         iraf.noao(_doprint=0, Stdout=0)
@@ -330,7 +349,29 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
             databasename = os.path.dirname(arcref) +'/database/id' +re.sub('.fits','',os.path.basename(arcref))
             if not os.path.exists('database'):  os.makedirs('database/')
             os.system('cp '+ databasename + ' database/' )
-            arcref0 = os.path.basename(arcref)            
+            arcref0 = os.path.basename(arcref)
+
+            xx2,yy2 = kast.kastutil.readspectrum(arcref0)
+            xx1,yy1 = kast.kastutil.readspectrum(arcfilex)
+            _shift = checkwavelength_arc(xx1, yy1, xx2, yy2, 100, 1000, 'no')      
+#            print(_shift)
+#            print(dv['nominal_dispersion'][(arm,disp)])
+            if np.abs(_shift) > 30:
+                print('### warning the reference arc and the observed arc may be very different')
+#                print(dv['nominal_dispersion'][(arm,disp)])
+                ndisp = dv['nominal_dispersion'][(arm,disp)]
+                _shift0 = checkwavelength_arc(xx1, yy1, xx2, yy2, 100, 1000, 'yes') * ndisp * (-1)
+                _shift = ask('####  do you want to try to apply this large shift  ['+str(_shift0)+']? ')
+                if not _shift:
+                    _shift = _shift0
+                else:
+                    _shift = float(_shift)
+                    
+#            print('#',_shift)
+#            print(arcref0)
+#            print(arcfilex)
+#            print(dv['ident']['cradius'])
+#            print(interactive)
             identific = iraf.specred.reidentify(referenc=arcref0, images=arcfilex,
                                                 interac= interactive, section='middle line',
                                                 shift=_shift, coordli='direc$standard/ident/licklinelist.dat',
@@ -338,18 +379,65 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
                                                 step=0,
                                                 newaps='no', nsum=5, nlost=2, mode='h',
                                                 verbose='yes', Stdout=1)
+#            if interactive.lower() in ['yes','y'] or force:
+#                answ = ask('#### do you like the identification [[y]/n] ? ')
+#                if not answ: answ='y'
+#                if answ in ['n','no']:
+#                    hduref = fits.open(arcref0)
+#                    arm = hduref[0].header['VERSION']
+#                    if arm=='kastr':
+#                        minw = 5500
+#                        maxw = 8000
+#                    else:
+#                        minw = 4000
+#                        maxw = 6000
+                        
 
+                    
         hedvec = {'REFSPEC1': [re.sub('.fits', '', arcfilex), ' reference arc']}
         updateheader(imgex, 0, hedvec)
         iraf.specred.dispcor(imgex, output=imgl, flux='yes')        
     return imgl
     
-#def searcharc(img, listarc):
-#    if not lisarc:
-#        imglist = glob.glob(kast.__path__)
-#    else:
-#        pass
-#    return imglist
+def searcharc(img, listarc,  arm=None, disp=None, dicroic = None):
+    _mjdnow = time.Time.now().mjd
+    
+    if arm== None or disp == None or dicroic == None:
+        hdu = fits.open(img)
+        arm = hdu[0].header['VERSION']
+        if arm == 'kastr':
+            disp = hdu[0].header['GRATNG_N']
+        elif arm == 'kastb':
+            disp = hdu[0].header['GRISM_N']
+        dicroic = hdu[0].header['BSPLIT_N']
+        
+    print(arm,disp,dicroic,_mjdnow)
+    
+    if not listarc:
+        directory = kast.__path__[0] + '/archive/' + str(arm) + '/arc/' + disp + '/' + dicroic 
+        listarc = glob.glob(directory + '/*fits')
+        print(listarc)
+        
+    mjddiff = []
+    goodlist = []
+    for arcimg in listarc:
+            hdu1 = fits.open(arcimg)
+            _mjd = time.Time(hdu1[0].header['DATE-OBS']).mjd
+            arm1 = hdu1[0].header['VERSION']
+            if arm1 == 'kastr':
+                disp1 = hdu1[0].header['GRATNG_N']
+            elif arm1 == 'kastb':
+                disp1 = hdu1[0].header['GRISM_N']
+            dicroic1 = hdu1[0].header['BSPLIT_N']
+            if disp ==disp1 and arm == arm1 and dicroic == dicroic1:
+                mjddiff.append(np.abs(_mjd - _mjdnow))
+                goodlist.append(arcimg)
+                
+    if len(mjddiff) >= 1:
+        arcfile = goodlist[np.argmin(mjddiff)]
+    else:
+        arcfile = ''
+    return arcfile
 
 def searchbias(arm):
     imglist = glob.glob(kast.__path__[0]+'/archive/' + arm + '/bias/*')
@@ -684,7 +772,7 @@ def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=Tru
         maxw = 6000
     
     if _interactive.lower() in ['yes', 'y']:
-        do_shift = raw_input('### Do you want to check the wavelength calibration with telluric lines? [[y]/n] ')
+        do_shift = ask('### Do you want to check the wavelength calibration with telluric lines? [[y]/n] ')
     else:
         print '### Checking wavelength calibration with telluric lines'
         do_shift = ''
@@ -714,7 +802,7 @@ def checkwavelength_obj(fitsfile, skyfile, _interactive='yes', usethirdlayer=Tru
         x2 = sky_arch.header['CRVAL1'] + np.arange(len(y2)) * sky_arch.header['CD1_1']
         shift = checkwavelength_arc(x1, y1, x2, y2, minw, maxw, _interactive)
         if _interactive.lower() in ['yes', 'y']:
-            answ = raw_input('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
+            answ = ask('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
             if answ:
                 shift = float(answ)
                 
@@ -739,7 +827,7 @@ def checkwavestd(imgl, skyfile, _interactive='yes', _type=1, arm = 'kastr'):
         
     print '\n### Warning: check in wavelength with sky lines not performed\n'
     if _interactive.upper() in ['YES', 'Y']:
-        answ = raw_input('\n### Do you want to check the wavelength calibration with telluric lines [[y]/n]? ')
+        answ = ask('\n### Do you want to check the wavelength calibration with telluric lines [[y]/n]? ')
         if not answ: answ = 'y'
     else:
         answ = 'y'
@@ -763,7 +851,7 @@ def checkwavestd(imgl, skyfile, _interactive='yes', _type=1, arm = 'kastr'):
         atmoaa = crval1 + atmoxx * cd1
         shift = checkwavelength_arc(atmoaa, atmoff, skyaa, skyff, minw, maxw,  _interactive)
         if _interactive.lower() in ['yes', 'y']:
-            answ = raw_input('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
+            answ = ask('By how much do you want to shift the wavelength calibration? [{}] '.format(shift))
             if answ:
                 shift = float(answ)
         if shift!=0:

@@ -375,34 +375,49 @@ if __name__ == "__main__":
                             print('already wavelength calibrated')
                             run = False
                 if os.path.isfile(arcfilex) is False:
-                    print('arcfile not found')
-                    directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
-                    listarc = glob.glob(directory + '/*fits')                    
-                    if not listarc:
+                    print('arcfile not found, use one from the database')
+                    arcfile = kast.kastutil.searcharc(imgex,'', arm=_arm, disp=_disp, dicroic=_dicroic)
+                    if not arcfile:
                         print('no arc with this setup in the archive, stop reduction ')
                         run = False
                     else:
-                        shutil.copy(listarc[0], os.path.basename(listarc[0]))
+                        shutil.copy(arcfile, os.path.basename(arcfile))
                         if not os.path.isdir('database'): os.mkdir('database')
-                        shutil.copy(directory +'/database/id' + re.sub('.fits','',os.path.basename(listarc[0])),\
-                                    'database/id'+ re.sub('.fits','',os.path.basename(listarc[0])))
-                        arcfilex = os.path.basename(listarc[0])
+                        shutil.copy(directory +'/database/id' + re.sub('.fits','',os.path.basename(arcfile)),\
+                                    'database/id'+ re.sub('.fits','',os.path.basename(arcfile)))
+                        arcfilex = os.path.basename(arcfile)
+                    
+#                    directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
+#                    listarc = glob.glob(directory + '/*fits')                    
+#                    if not listarc:
+#                        print('no arc with this setup in the archive, stop reduction ')
+#                        run = False
+#                    else:
+#                        print('#',listarc)
+#                        raw_input('stop')
+#                        kast.util.searcharc
+#                        shutil.copy(listarc[0], os.path.basename(listarc[0]))
+#                        if not os.path.isdir('database'): os.mkdir('database')
+#                        shutil.copy(directory +'/database/id' + re.sub('.fits','',os.path.basename(listarc[0])),\
+#                                    'database/id'+ re.sub('.fits','',os.path.basename(listarc[0])))
+#                        arcfilex = os.path.basename(listarc[0])
+#                        directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
+#                        listarc = glob.glob(directory + '/*fits')
+#                        if not listarc:
                         
                 if run is True:
-                        directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
-                        listarc = glob.glob(directory + '/*fits')                    
-                        if not listarc:
-                            imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force, interactive=_interiraf)
-                        else:
-                            _arcref = listarc[0]
-                            print('#######',_arcref)
-                            imgl= kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force, interactive=_interiraf)
+                    _arcref = kast.kastutil.searcharc(arcfilex,'', arm=_arm, disp=_disp, dicroic=_dicroic)
+                    if not _arcref:
+                        imgl = kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = False, force=_force, interactive=_interiraf)
+                    else:
+                        print('#######',_arcref)
+                        imgl= kast.kastutil.identify(arcfilex, img, _arm, dv, arcref = _arcref, force=_force, interactive=_interiraf)
                         
-                        if _arm == 'kastr':
-                            _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
-                        else:
-                            _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
-                        kast.kastutil.checkwavelength_obj(imgl, _skyfile, _interiraf,True, arm = _arm)
+                    if _arm == 'kastr':
+                        _skyfile = kast.__path__[0]+'/standard/ident/sky_red.fits'
+                    else:
+                        _skyfile = kast.__path__[0]+'/standard/ident/sky_blu.fits'
+                    kast.kastutil.checkwavelength_obj(imgl, _skyfile, _interiraf,True, arm = _arm)
                         
 ################################################################################
     #####   wavelengh calibration standard
@@ -610,8 +625,11 @@ if __name__ == "__main__":
             if len(imglist)>0:
                 run = True
                 atmo = imglist[0]
+            else:
+                atmo=[]
         else:
-            atmo = []
+            atmo = imglist[0]
+
             
         imglist = glob.glob('*merge.fits')
         if len(imglist)==0:
