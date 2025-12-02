@@ -358,8 +358,11 @@ def identify(arcfilex, img, arm, dv, arcref=False, force =False, interactive = '
 #            print(dv['nominal_dispersion'][(arm,disp)])
             if np.abs(_shift) > 15:
                 print('### warning the reference arc and the observed arc may be very different')
-#                print(dv['nominal_dispersion'][(arm,disp)])
-                ndisp = dv['nominal_dispersion'][(arm,disp)]
+                if (arm,disp) in dv['nominal_dispersion']:
+                    ndisp = dv['nominal_dispersion'][(arm,disp)]
+                else:
+                    print('### warning, nominal dispertion not available for this setup')
+                    ndisp = 1.
                 _shift0 = checkwavelength_arc(xx1, yy1, xx2, yy2, 100, 1000, 'yes') * ndisp * (-1)
                 _shift = ask('####  do you want to try to apply this large shift  ['+str(_shift0)+']? ')
                 if not _shift:
