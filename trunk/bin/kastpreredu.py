@@ -29,6 +29,48 @@ ds9 = pyds9.DS9(str(time.time()))
 ds9.set('frame 1')
 ds9.set('scale zscale');
 
+def trytrim(img,show=False):
+    global ax1, ax2
+    hdu = fits.open(img)
+    data = hdu[0].data
+    if hdu[0].header['version'] == 'kastr':
+            arm='red'
+            axis = 0
+            order=410
+    else:
+            arm = 'blu'
+            axis =1
+            order =110
+         
+    mean = data.mean(axis)
+    x = np.arange(len(mean))
+    meanmean= np.mean(mean)
+    mean2 = mean[np.argsort(mean)] 
+    if 'Flat' in hdu[0].header['object']:
+        xmin =x[mean>meanmean][0]+10
+        xmax =x[mean>meanmean][-1]-10
+    elif 'Bias' in hdu[0].header['object'] or 'Arc' in hdu[0].header['object']:
+        print('I can not use arc of bias to find the trim')
+        xmin,xmax = None, None
+    else:
+        xmin =x[mean>mean2[order]][0]+10
+        xmax =x[mean>mean2[order]][-1]-10
+
+    if xmin and show:
+        ax1.clear()
+        ax1.plot(x,mean2,'-c')
+        print(xmin)
+        print(xmax)
+
+        ax2.plot(x,mean,'-r', label = 'mean')
+        ax2.plot([xmin,xmin],[np.min(mean),np.max(mean)],'k-')
+        ax2.plot([xmax,xmax],[np.min(mean),np.max(mean)],'k-')
+        raw_input(' stop '+ img )
+        ax1.clear()
+        ax2.clear()            
+    return xmin,xmax
+
+
 if __name__ == "__main__":
     parser = OptionParser(usage=usage, description=description, version="%prog 1.0")
     parser.add_option("-d", "--directory", dest="directory", default=None, type="str",
@@ -139,16 +181,105 @@ if __name__ == "__main__":
     
     for arm in _sizeobject:
         if  proceed[arm][0] is True:
-            if arm =='kastb':
-                range = _sizeobject[arm][0].split(',')[1].split(':')
+            
+            ##################
+            masterbias = 'masterbias_' + arm + '.fits'
+            if len(setup_bias[arm])>0:
+                if _verbose:
+                    for img in setup_bias[arm]:
+                        ds9.set_np2arr(dictionary[img]['fits'][0].data)
+                        answer = kast.kastutil.ask('good [y/n] [y]?')
+                        if not answer:
+                            answer = 'y'
+                        if answer in ['n','N','no']:
+                            setup_bias[arm].remove(img)
+            
+                _rdnoise = 1
+                _gain = 1
+                print('combine bias for ' + arm)
+                kast.kastutil.combinebias(setup_bias[arm], masterbias,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
             else:
-                range = _sizeobject[arm][0].split(',')[0].split(':')
-            trima = int(range[1])/2 -150
-            trimb = int(range[1])/2+150
-            if trima<=0:
-                trima = 0
-            if trimb >= float(range[1]):
-                trimb = int(range[1])
+                print('warning bias not there, using bias from archive')
+                masterbias = 'masterbias_' + arm + '.fits'
+                mast = kast.kastutil.searchbias(arm)
+                if mast is not None:
+                    shutil.copyfile(mast,masterbias)
+                else:
+                    print('skip bias')
+            
+            #########################
+
+            masterflat = 'masterflat_' + arm + '.fits'
+            if len(setup_flat[arm])>0:            
+                if _verbose:
+                    for img in setup_flat[arm]:
+                        ds9.set_np2arr(dictionary[img]['fits'][0].data)
+                        answer = kast.kastutil.ask('good [y/n] [y]?')
+                        if not answer:
+                            answer = 'y'
+                        if answer in ['n','N','no']:
+                            setup_flat[arm].remove(img)
+        
+                _rdnoise = 1
+                _gain = 1
+                _order = 80
+                if len(setup_flat[arm]):
+                    print('combine flat for '+arm)
+                    kast.kastutil.combineflat(setup_flat[arm], masterflat,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
+            else:
+                print('Warning no flats for ' + arm)
+                
+            ###################################
+            ###### define trima and trimb 
+            if os.path.exists(masterflat):
+                hdr=fits.open(masterflat)
+                data = hdr[0].data
+                if arm =='kastr':
+                    y =data.mean(0)
+                    x = np.arange(len(y))
+                    trima, trimb = x[y>np.average(y)][0] + 10 ,x[y>np.average(y)][-1] -10
+                else:
+                    y =data.mean(1)
+                    x = np.arange(len(y))
+                    trima, trimb = x[y>np.average(y)][0] + 10 , x[y>np.average(y)][-1] - 10
+            else:
+                print('no flat, try define trim using science image')
+
+                if _verbose:
+                    fig, (ax1,ax2) = plt.subplots(1,2)
+                xminvec = []
+                xmaxvec = []
+                for img in setup_object[arm]:
+                    xmin,xmax = trytrim(img,show=_verbose)
+                    if xmin:
+                        xminvec.append(xmin)
+                        xmaxvec.append(xmax)
+                        
+                print(xminvec)
+                print(xmaxvec)
+                xmin = int(np.mean(xminvec))
+                xmax = int(np.mean(xmaxvec))
+                print(xmin,xmax)
+                if xmax -xmin <  100:
+                    print('did not work, use default')
+                
+                    ######### define Trim ########
+                    if arm =='kastb':
+                        range = _sizeobject[arm][0].split(',')[1].split(':')
+                    else:
+                        range = _sizeobject[arm][0].split(',')[0].split(':')
+                    trima = int(range[1])/2 -150
+                    trimb = int(range[1])/2+150
+                    if trima<=0:
+                        trima = 0
+                    if trimb >= float(range[1]):
+                        trimb = int(range[1])
+                else:
+                        trima, trimb = xmin, xmax
+                        
+            print(trima,trimb)
+            #############################
+            
             if  dictionary[setup_object[arm][0]]['GRISM_N'] in ['600/7500','600/4310']:
                 if arm =='kastb':
                     trimsec[arm] = '[1:2048,'+str(trima)+':'+str(trimb)+']'
@@ -171,65 +302,33 @@ if __name__ == "__main__":
                 else:
                     trimsec[arm] =  '['+str(trima)+':'+str(trimb)+',60:2200]'
                     
-            print('combine bias for ' + arm)
-            if len(setup_bias[arm])>0:
-                if _verbose:
-                    for img in setup_bias[arm]:
-                        ds9.set_np2arr(dictionary[img]['fits'][0].data)
-                        answer = kast.kastutil.ask('good [y/n] [y]?')
-                        if not answer:
-                            answer = 'y'
-                        if answer in ['n','N','no']:
-                            setup_bias[arm].remove(img)
-            
-                masterbias = 'masterbias_' + arm + '.fits'
+            ############################
+            if os.path.exists(masterbias):
+                print('trim  bias '+ arm)
                 _rdnoise = 1
                 _gain = 1
-                kast.kastutil.combinebias(setup_bias[arm], masterbias,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
-                print('trim  bias '+ arm)
                 kast.kastutil.ccdprocimage(masterbias,'t'+masterbias,_trimcor='yes',_overscan='no',_zerocor='no',_flatcor='no', 
                                            _zero = '', _biassec='', _trimsec = trimsec[arm], _flat = '',
                                            _readaxi= readaxi[arm],direction = specredaxis[arm])
             else:
-                print('warning bias not there, using bias from archive')
-                masterbias = 'masterbias_' + arm + '.fits'
-                mast = kast.kastutil.searchbias(arm)
-                if mast is not None:
-                    shutil.copyfile(mast,masterbias)
-                    print('trim  bias '+ arm)
-                    kast.kastutil.ccdprocimage(masterbias,'t'+masterbias,_trimcor='yes',_overscan='no',_zerocor='no',_flatcor='no', 
-                                               _zero = '', _biassec='', _trimsec = trimsec[arm], _flat = '',
-                                               _readaxi= readaxi[arm],direction = specredaxis[arm])
-                else:
-                    print('skip bias')
-
-            print('combine flat for '+arm)
-            if len(setup_flat[arm])>0:            
-                if _verbose:
-                    for img in setup_flat[arm]:
-                        ds9.set_np2arr(dictionary[img]['fits'][0].data)
-                        answer = kast.kastutil.ask('good [y/n] [y]?')
-                        if not answer:
-                            answer = 'y'
-                        if answer in ['n','N','no']:
-                            setup_flat[arm].remove(img)
-        
-                masterflat = 'masterflat_' + arm + '.fits'
+                print('no masterbias')
+                
+            ######################
+            if os.path.exists(masterflat):
+                print('trim flat and normalize')
                 _rdnoise = 1
                 _gain = 1
                 _order = 80
-                if len(setup_flat[arm]):
-                    kast.kastutil.combineflat(setup_flat[arm], masterflat,_rdnoise,_gain, comb = 'median',rej = 'ccdclip')
-        
-                    kast.kastutil.ccdprocimage(masterflat,'t'+masterflat,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
-                                               _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm], _flat = '',
-                                               _readaxi= readaxi[arm],direction = specredaxis[arm])
+                kast.kastutil.ccdprocimage(masterflat,'t'+masterflat,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
+                                           _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm], _flat = '',
+                                           _readaxi= readaxi[arm],direction = specredaxis[arm])
             
-                    kast.kastutil.responseflat('t'+masterflat , 't'+masterflat,  'n'+masterflat,
-                                               _order, function= 'spline3',direction = specredaxis[arm],_arm=arm, _interactive = _interiraf)
+                kast.kastutil.responseflat('t'+masterflat , 't'+masterflat,  'n'+masterflat,
+                                           _order, function= 'spline3',direction = specredaxis[arm],_arm=arm, _interactive = _interiraf)
             else:
-                print('Warning no flats for ' + arm)
+                print('no masterflat')
 
+            ######################
             print('pre-reduce objects')
             if len(setup_object[arm])>0:            
                 if _verbose:
@@ -244,10 +343,16 @@ if __name__ == "__main__":
                 for img in setup_object[arm]:
                     nameobj = dictionary[img]['OBJECT'] + '_' + img
                     if _verbose: print(nameobj)
-                    kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='yes', 
-                                               _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
-                                               _flat = 'nmasterflat_' + arm + '.fits',
-                                               _readaxi= readaxi[arm],direction = specredaxis[arm])
+
+                    if os.path.exists('nmasterflat_' + arm + '.fits'):
+                        kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='yes', 
+                                                   _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
+                                                   _flat = 'nmasterflat_' + arm + '.fits',
+                                                   _readaxi= readaxi[arm],direction = specredaxis[arm])
+                    else:
+                        kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
+                                                   _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
+                                                   _flat = '', _readaxi= readaxi[arm],direction = specredaxis[arm])
             else:
                 print('warning no objects with this arm')
                 
@@ -264,51 +369,18 @@ if __name__ == "__main__":
                 for img in setup_arc[arm]:
                     nameobj = dictionary[img]['OBJECT'] + '_' + img
                     if _verbose: print(nameobj)
-                    kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='yes', 
-                                               _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
-                                               _flat = 'nmasterflat_' + arm + '.fits',
-                                               _readaxi= readaxi[arm],direction = specredaxis[arm])
+
+                    if os.path.exists('nmasterflat_' + arm + '.fits'):
+                        kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='yes', 
+                                                   _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
+                                                   _flat = 'nmasterflat_' + arm + '.fits',
+                                                   _readaxi= readaxi[arm],direction = specredaxis[arm])
+                    else:
+                        kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='no', 
+                                                   _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
+                                                   _flat = '', _readaxi= readaxi[arm],direction = specredaxis[arm])
             else:
-                print('warning no objects with this arm')
+                print('warning no arc file with this  arm')
         else:
             print(proceed[arm])
 ##################################################################################
-#####################   
-#    print('pre-reduce standard')
-#    for arm in setup_standard.keys():
-#        if _verbose:
-#            for img in setup_standard[arm]:
-#                ds9.set_np2arr(dictionary[img]['fits'][0].data)
-#                answer = kast.kastutil.ask('is this a science target [y/n] [y]?')
-#                if not answer:
-#                    answer = 'y'
-#                if answer in ['n','N','no']:
-#                    setup_standard[arm].remove(img)
-#        for img in setup_standard[arm]:
-#            nameobj = dictionary[img]['OBJECT'] + '_' + img
-#            if _verbose: print(nameobj)
-#            kast.kastutil.ccdprocimage(img,nameobj,_trimcor='yes',_overscan='no',_zerocor='yes',_flatcor='yes', 
-#                                       _zero ='tmasterbias_' + arm + '.fits', _biassec='', _trimsec = trimsec[arm],
-#                                       _flat = 'nmasterflat_' + arm + '.fits',
-#                                       _readaxi= readaxi[arm],direction = specredaxis[arm])                    
-            
-#    list = dictionary.keys()
-#    header= ''
-#    #for key in dictionary[list[0]].keys():
-#    for key in kast.kastutil.listhd:
-#        if key in ['DATE-OBS']:
-#            header = header + '%25s' % (key)
-#        else:
-#            header = header + '%15s' % (key)
-#    print(header)
-#    for img in setup_standard['kastr']:
-#        value = ''
-#        for key in kast.kastutil.listhd:
-#            if key in ['DATE-OBS']:
-#                value = value + '%25s' % (str(dictionary[img][key]))
-#            else:
-#                value = value + '%15s' % (str(dictionary[img][key]))
-#        print(value)
-        
-    
-   

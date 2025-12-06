@@ -382,12 +382,14 @@ if __name__ == "__main__":
                         run = False
                     else:
                         shutil.copy(arcfile, os.path.basename(arcfile))
-                        if not os.path.isdir('database'): os.mkdir('database')
+                        if not os.path.isdir('database'):
+                            os.mkdir('database')
+                            
+                        directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
                         shutil.copy(directory +'/database/id' + re.sub('.fits','',os.path.basename(arcfile)),\
                                     'database/id'+ re.sub('.fits','',os.path.basename(arcfile)))
                         arcfilex = os.path.basename(arcfile)
                     
-#                    directory = kast.__path__[0] + '/archive/' + str(_arm) + '/arc/' + _disp + '/' + _dicroic 
 #                    listarc = glob.glob(directory + '/*fits')                    
 #                    if not listarc:
 #                        print('no arc with this setup in the archive, stop reduction ')
